@@ -1,0 +1,9 @@
+* text=auto
+*.swift text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.strings text eol=lf
+# Preserve upstream formatting in vendored code and license notices.
+ThirdPartyNotices/** -whitespace
+Vendor/** -whitespace

@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    name: Verify
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish release
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release tag and protected branch ancestry
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          version="${RELEASE_TAG#v}"
+          test -s "docs/releases/$version.md"
+      - name: Download packages from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: Cliprill-macOS-*
+          path: dist
+          merge-multiple: true
+      - name: Add matching source and checksums
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          test -s "dist/Cliprill-$version-macOS-arm64.zip"
+          test -s "dist/Cliprill-$version-macOS-x86_64.zip"
+          git archive --format=zip --prefix="cliprill-$version/" --output="dist/cliprill-$version-source.zip" "$GITHUB_SHA"
+          cd dist
+          sha256sum ./*.zip > SHA256SUMS.txt
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Cliprill $version" --notes-file "docs/releases/$version.md" dist/*
+          gh release edit "$RELEASE_TAG" --draft=false --latest

@@ -1,0 +1,31 @@
+name: Bug report
+description: Report unexpected Cliprill behavior.
+body:
+  - type: markdown
+    attributes:
+      value: Use sample text rather than real clipboard contents. Report vulnerabilities privately through the Security tab.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Cliprill version, macOS version, and Apple Silicon or Intel.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the destination app, queue sample, and whether you used Command–V or another paste action.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Relevant error messages or screenshots with private content removed.

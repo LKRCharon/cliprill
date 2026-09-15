@@ -1,0 +1,13 @@
+.build/
+.swiftpm/
+.DS_Store
+*.app/
+*.zip
+__pycache__/
+*.pyc
+dist/
+.env
+.env.*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
