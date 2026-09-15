@@ -26,16 +26,22 @@ the first launch. For a copy you trust, use **System Settings → Privacy & Secu
 ## Start using it
 
 1. Open `Cliprill.app`. It lives in the menu bar.
-2. Press **Control–Option–V** to open the panel near the pointer. Change this shortcut in Settings.
+2. Press **Shift–Command–V** to open the panel near the pointer. Change this shortcut in Settings.
 3. Copy text normally to build history. Click a row's **+** to append it to the selected queue.
-4. The top **+** creates a queue from text. Choose **Whole text** or explicitly split by lines.
-5. Select **Queue → Start queue**. Enable Cliprill in **System Settings → Privacy & Security → Accessibility** when requested.
-6. Focus your destination app. Each ordinary **Command–V** dispatches one item in FIFO order.
+4. Choose **New Queue** from the top **⋯** menu to create a queue from text. Choose **Whole text** or explicitly split by lines.
+5. Switch to **Queue** to automatically start the selected queue. The panel stays visible; drag the blank header area to reposition it. The permission guide opens **System Settings → Privacy & Security → Accessibility**, offers **Show Cliprill in Finder** if it is missing from the list, and detects when access is enabled. Click **Continue** to return to your queue.
+6. Focus your destination app. Each ordinary **Command–V** dispatches one item in FIFO order while the queue stays visible. Switching back to **History** pauses sequential paste.
 
-Use the arrow buttons to reorder remaining items, the trash button to remove one,
-and the undo button to restore the last dispatched item. Restoring an item pauses
+Use the **⋯** or row context menu to reorder or remove remaining items and restore
+the last dispatched item. Restoring an item pauses
 the queue; it does not undo text inside the destination app. Enter pastes a history
-item; Option–Enter appends it to the queue. The preview button shows complete text.
+item; Option–Enter appends it to the queue. **Command–Y** or **Preview** in the menu shows complete text; Enter previews a queue item.
+
+The panel uses a white surface in light appearance, adapts its height when opened
+or switching modes, and keeps the frame stable while typing a search. The **Next**
+label follows the actual queue cursor, including when search hides that item.
+Escape clears the search before closing the panel; IME composition takes priority.
+See [UI and interaction decisions](docs/INTERACTIONS.md).
 
 Copying something else pauses an active queue. Closing the panel keeps the service
 running. Restarting the app restores unfinished queues in a paused state. A queue

@@ -3,14 +3,16 @@ import AppKit
 import KeyboardShortcuts
 import CliprillCore
 
-private let localizationBundle: Bundle = {
+enum CliprillResources {
+static let bundle: Bundle = {
     if let resources = Bundle.main.resourceURL,
        let bundle = Bundle(url: resources.appendingPathComponent("Cliprill_CliprillApp.bundle")) { return bundle }
     return .module
 }()
-func L(_ key: String) -> String { NSLocalizedString(key, bundle: localizationBundle, comment: "") }
+}
+func L(_ key: String) -> String { NSLocalizedString(key, bundle: CliprillResources.bundle, comment: "") }
 extension KeyboardShortcuts.Name {
-    static let toggleCliprill = Self("toggleCliprill", default: .init(.v, modifiers: [.control, .option]))
+    static let toggleCliprill = Self("toggleCliprill", default: .init(.v, modifiers: [.command, .shift]))
 }
 
 @main
@@ -37,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var coordinator: PasteCoordinator!
     var panel: PanelController!
     var settings: SettingsController?
+    var permissionGuide: AccessibilityController?
     var status: NSStatusItem!
     private var instance: InstanceLock?
     private var server: IPCServer?
@@ -56,11 +59,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             coordinator.onChange = { [weak self] in await self?.refresh() }
             coordinator.onMessage = { [weak self] message in self?.panel.showMessage(message) }
             status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            status.button?.image = NSImage(systemSymbolName: "list.clipboard", accessibilityDescription: "Cliprill")
+            status.button?.image = ClipIcon.clipboard.image(size: 18)
             status.button?.target = self; status.button?.action = #selector(statusClicked)
             status.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
             status.button?.toolTip = "Cliprill"
             installMenu()
+            // Upgrade the original default without replacing customized shortcuts.
+            if !UserDefaults.standard.bool(forKey: "shiftCommandVShortcutMigrated") {
+                if KeyboardShortcuts.getShortcut(for: .toggleCliprill) == .init(.v, modifiers: [.control, .option]) {
+                    KeyboardShortcuts.setShortcut(.init(.v, modifiers: [.command, .shift]), for: .toggleCliprill)
+                }
+                UserDefaults.standard.set(true, forKey: "shiftCommandVShortcutMigrated")
+            }
             KeyboardShortcuts.onKeyUp(for: .toggleCliprill) { [weak self] in self?.togglePanel() }
             server = try IPCServer(directory: CliprillPaths.dataDirectory)
             server?.start { [weak self] request in
@@ -143,6 +153,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings == nil { settings = SettingsController(appDelegate: self) }
         settings?.showWindow(nil); settings?.window?.center(); settings?.refreshPermission()
         NSApp.activate(ignoringOtherApps: true)
+    }
+    func showPermissionGuide(onReady: (() -> Void)? = nil) {
+        if permissionGuide == nil { permissionGuide = AccessibilityController(appDelegate: self) }
+        permissionGuide?.present(onReady: onReady)
     }
     @objc func quit() { NSApp.terminate(nil) }
     private func installMenu() {
