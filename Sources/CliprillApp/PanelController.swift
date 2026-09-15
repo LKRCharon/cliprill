@@ -123,8 +123,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
 
     private func build() {
         guard let window else { return }
-        let root = NSVisualEffectView(); root.material = .popover; root.blendingMode = .behindWindow; root.state = .active
-        root.wantsLayer = true; root.layer?.cornerRadius = 12; root.layer?.masksToBounds = true
+        let root = PanelSurfaceView()
         window.contentView = root
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(stack)

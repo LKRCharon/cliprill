@@ -16,6 +16,8 @@ final class ImportController: NSWindowController {
         self.save = save
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 360), styleMask: [.titled], backing: .buffered, defer: false)
         window.title = queue == nil ? L("new.queue") : L("append.text")
+        window.backgroundColor = CliprillAppearance.windowBackground
+        window.titlebarAppearsTransparent = true
         super.init(window: window)
         let root = NSView(); window.contentView = root
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 12
@@ -69,6 +71,8 @@ final class SettingsController: NSWindowController {
         self.appDelegate = appDelegate
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 490, height: 550), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Cliprill · " + L("settings"); window.isReleasedWhenClosed = false
+        window.backgroundColor = CliprillAppearance.windowBackground
+        window.titlebarAppearsTransparent = true
         super.init(window: window)
         let root = NSView(); window.contentView = root
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 15
