@@ -27,7 +27,7 @@ the first launch. For a copy you trust, use **System Settings → Privacy & Secu
 
 1. Open `Cliprill.app`. It lives in the menu bar.
 2. Press **Shift–Command–V** to open the panel near the pointer. Change this shortcut in Settings.
-3. Copy text normally to build history. Click a row's **+** to append it to the selected queue.
+3. Copy text or an image normally to build history. Images show thumbnails and dimensions. Click a row's **+** to append it to the selected queue; text and images can be mixed.
 4. Choose **New Queue** from the top **⋯** menu to create a queue from text. Choose **Whole text** or explicitly split by lines.
 5. Switch to **Queue** to automatically start the selected queue. The panel stays visible; drag the blank header area to reposition it. The permission guide opens **System Settings → Privacy & Security → Accessibility**, offers **Show Cliprill in Finder** if it is missing from the list, and detects when access is enabled. Click **Continue** to return to your queue.
 6. Focus your destination app. Each ordinary **Command–V** dispatches one item in FIFO order while the queue stays visible. Switching back to **History** pauses sequential paste.
@@ -45,7 +45,7 @@ See [UI and interaction decisions](docs/INTERACTIONS.md).
 
 Copying something else pauses an active queue. Closing the panel keeps the service
 running. Restarting the app restores unfinished queues in a paused state. A queue
-owns independent text snapshots, so clearing history does not empty it. Duplicate
+owns independent text and image snapshots, so clearing history does not empty it. Duplicate
 entries are preserved; `A, A, B` takes three paste requests. No reverse insertion is needed.
 
 ## Paste behavior and limits
@@ -60,8 +60,15 @@ The last dispatched item remains on the clipboard until the next real paste
 request. Distinct rapid presses are serialized with a 160 ms dispatch interval;
 holding Command–V does not repeatedly consume the queue. A slow target can still
 read late. V1 intercepts ordinary Command–V only, not menu/trackpad Paste, remapped
-paste keys, Shift–Command–V, rich text, images, or files. Secure Input and missing
+paste keys, Shift–Command–V, rich text, or file transfers. Secure Input and missing
 Accessibility permission prevent queue activation.
+
+Image capture accepts raster image data from screenshots and applications (PNG,
+TIFF, JPEG and other supported system image formats). History and queue previews
+show the image; pasting supplies both PNG and TIFF, preserving full pixel dimensions
+and transparency. Browser image data takes priority over an accompanying URL.
+Animated images are currently captured as a still first frame. Copying a Finder
+file is not an image-file transfer feature. See [image behavior and storage](docs/IMAGES.md).
 
 ## MCP
 
@@ -110,7 +117,7 @@ prepares the clipboard and enables sequential paste; it never types by itself.
 | `queue_activate`, `queue_pause` | Control sequential paste |
 | `queue_undo_last` | Restore the last dispatched item and pause |
 | `queue_delete` | Delete a saved queue; requires current revision |
-| `history_search` | Read bounded text history pages |
+| `history_search` | Read bounded text history or image metadata pages |
 
 Every MCP write requires `idempotency_key`. Repeating a key with identical arguments
 returns the original saved response, even after a restart; use `queue_get` for current
@@ -118,8 +125,15 @@ state. Reusing a key with changed arguments returns `idempotency_conflict`. A qu
 being dispatched returns `busy` for concurrent mutations; retry with the same key.
 Version mismatches return `revision_conflict`, and invalid permutations fail atomically.
 
-Limits: 100 saved queues, 1,000 entries per queue, 256 KiB per item, 2 MB per import,
-8 MB total queue text. History supports up to 2,000 entries within an 8 MB text budget;
+To enqueue an existing image, use an item such as `{"history_id":"ID_FROM_HISTORY_SEARCH"}`
+in `queue_create` or `queue_append`. Each item accepts either `text` or `history_id`,
+with an optional `label`. Image responses include kind, dimensions and size;
+image pixels are not embedded in MCP JSON responses.
+
+Limits: 100 saved queues, 1,000 entries per queue, 256 KiB per text item, 2 MB per text import,
+8 MB total queue text. Images are limited to 40 megapixels and 64 MiB after PNG
+normalization, with 256 MiB each for history and unique queue images.
+History supports up to 2,000 entries within an 8 MB text budget;
 search pages return up to 100 entries and 2 MB of encoded items. The local message limit is 4 MB.
 
 For shell inspection, the helper also supports:
@@ -130,11 +144,11 @@ For shell inspection, the helper also supports:
 
 ## Data and privacy
 
-The app stores text and source-app names locally in
+The app stores text, images, thumbnails and source-app names locally in
 `~/Library/Application Support/Cliprill/cliprill.sqlite` (SQLite, WAL, atomic snapshots
 and retry receipts). The directory and socket are private to the current user.
 There is no telemetry, cloud sync or app network listener. MCP clients you configure
-can read text through the declared tools; no content is logged by the app/helper.
+can read text and image metadata through the declared tools; no content is logged by the app/helper.
 
 Transient/concealed pasteboard types and common password-manager bundle IDs are
 excluded from history. Add further app exclusions in Settings. This cannot detect

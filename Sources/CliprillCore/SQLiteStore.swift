@@ -16,6 +16,7 @@ final class SQLiteStore {
         sqlite3_busy_timeout(db, 3000)
         try execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA secure_delete=ON;")
         try execute("CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS receipts (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, response BLOB NOT NULL);")
+        try execute("CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, png BLOB NOT NULL, thumbnail BLOB NOT NULL);")
     }
     deinit { sqlite3_close(db) }
     private func execute(_ sql: String) throws {
@@ -37,7 +38,7 @@ final class SQLiteStore {
         switch sqlite3_step(s) {
         case SQLITE_ROW:
             let value = try JSONDecoder().decode(CoreState.self, from: blob(s, 0))
-            guard value.schema == 1 else { throw CoreError("schema", "This database requires a newer Cliprill version.") }
+            guard (1...2).contains(value.schema) else { throw CoreError("schema", "This database requires a newer Cliprill version.") }
             return value
         case SQLITE_DONE: return CoreState()
         default: throw failure()
@@ -55,10 +56,28 @@ final class SQLiteStore {
         default: throw failure()
         }
     }
-    func save(_ value: CoreState, receipt: (String, String, JSONValue)? = nil) throws {
+    func imageData(id: String, thumbnail: Bool = false) throws -> Data {
+        let s = try statement(thumbnail ? "SELECT thumbnail FROM images WHERE id=?" : "SELECT png FROM images WHERE id=?")
+        defer { sqlite3_finalize(s) }
+        sqlite3_bind_text(s, 1, id, -1, transient)
+        switch sqlite3_step(s) {
+        case SQLITE_ROW: return blob(s, 0)
+        case SQLITE_DONE: throw CoreError("image_missing", "The saved image is unavailable.")
+        default: throw failure()
+        }
+    }
+    func save(_ value: CoreState, receipt: (String, String, JSONValue)? = nil, image: PreparedClipboardImage? = nil) throws {
         let data = try JSONEncoder().encode(value)
         try execute("BEGIN IMMEDIATE")
         do {
+            if let image {
+                let insert = try statement("INSERT OR IGNORE INTO images(id,png,thumbnail) VALUES(?,?,?)")
+                defer { sqlite3_finalize(insert) }
+                sqlite3_bind_text(insert, 1, image.image.id, -1, transient)
+                _ = image.png.withUnsafeBytes { sqlite3_bind_blob(insert, 2, $0.baseAddress, Int32($0.count), transient) }
+                _ = image.thumbnail.withUnsafeBytes { sqlite3_bind_blob(insert, 3, $0.baseAddress, Int32($0.count), transient) }
+                guard sqlite3_step(insert) == SQLITE_DONE else { throw failure() }
+            }
             let s = try statement("INSERT INTO state(id,payload) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload")
             defer { sqlite3_finalize(s) }
             _ = data.withUnsafeBytes { sqlite3_bind_blob(s, 1, $0.baseAddress, Int32($0.count), transient) }
@@ -71,6 +90,23 @@ final class SQLiteStore {
                 let bytes = try response.encoded()
                 _ = bytes.withUnsafeBytes { sqlite3_bind_blob(r, 3, $0.baseAddress, Int32($0.count), transient) }
                 guard sqlite3_step(r) == SQLITE_DONE else { throw failure() }
+            }
+            // History and queue snapshots share immutable blobs. Collect only unreferenced images,
+            // including consumed queue items in the retained set so Undo remains possible.
+            let retained = Set(value.history.compactMap { $0.image?.id } + value.queues.flatMap { $0.items.compactMap { $0.image?.id } })
+            let all = try statement("SELECT id FROM images"); defer { sqlite3_finalize(all) }
+            var obsolete: [String] = []
+            var step = sqlite3_step(all)
+            while step == SQLITE_ROW {
+                let id = String(cString: sqlite3_column_text(all, 0))
+                if !retained.contains(id) { obsolete.append(id) }
+                step = sqlite3_step(all)
+            }
+            guard step == SQLITE_DONE else { throw failure() }
+            let delete = try statement("DELETE FROM images WHERE id=?"); defer { sqlite3_finalize(delete) }
+            for id in obsolete {
+                sqlite3_reset(delete); sqlite3_bind_text(delete, 1, id, -1, transient)
+                guard sqlite3_step(delete) == SQLITE_DONE else { throw failure() }
             }
             try execute("COMMIT")
         } catch { try? execute("ROLLBACK"); throw error }

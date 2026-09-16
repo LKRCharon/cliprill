@@ -12,6 +12,7 @@ Approved 2026-09-15. Preserve the working queue workflow while updating the nati
 - Closing the panel leaves the background service running. Restart recovery is paused. External copies and Secure Input retain their existing safety behavior.
 - Enter pastes a History item and previews a Queue item. Option–Enter enqueues a History item. Command–Y previews; Command–1/2 changes History/Queue.
 - Escape belongs to an active IME composition first, then closes a preview, clears a query, or closes the panel. Space in the search field remains text.
+- Text and captured images can share a queue. Image rows show thumbnails and dimensions; Enter pastes an image from History or previews it in Queue. Clearing history preserves queued images. See [image support](IMAGES.md).
 
 ## Visual implementation
 

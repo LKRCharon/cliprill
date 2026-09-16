@@ -30,7 +30,7 @@
 "queue.empty" = "准备好下一组内容";
 "queue.empty.detail" = "从历史加入内容，或新建队列。";
 "history.empty" = "下一次复制，就在这里";
-"history.empty.detail" = "复制应用中的文本，随时在这里取用。";
+"history.empty.detail" = "复制文字或图片，随时在这里取用。";
 "status.active" = "⌘V 粘贴下一条";
 "status.paused" = "已暂停";
 "status.recovered" = "已恢复 · 已暂停";
@@ -49,7 +49,7 @@
 "split.lines" = "每行作为一项";
 "enter.text" = "请先输入文本。";
 "cancel" = "取消";
-"capture.history" = "保存复制的文本到历史";
+"capture.history" = "保存复制的文字和图片到历史";
 "history.limit" = "最多保存历史条数";
 "history.retention" = "历史保留时间";
 "days" = "天";
@@ -88,3 +88,4 @@
 "settings.general" = "快捷键";
 "settings.integration" = "集成";
 "settings.mcp" = "连接 AI 助手";
+"image" = "图片";

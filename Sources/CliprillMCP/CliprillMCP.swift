@@ -21,8 +21,13 @@ enum CliprillMCP {
     private static let integer: JSONValue = .object(["type": .string("integer"), "minimum": .integer(0)])
     private static let items: JSONValue = .object([
         "type": .string("array"), "minItems": .integer(1), "maxItems": .integer(1000),
-        "description": .string("FIFO output order. Duplicate text is preserved. Multiline text remains one item."),
-        "items": .object(["type": .string("object"), "properties": .object(["text": .object(["type": .string("string")]), "label": .object(["type": .string("string")])]), "required": .array([.string("text")]), "additionalProperties": .bool(false)])
+        "description": .string("FIFO order; duplicates are preserved. Use text for a new text item, or history_id to snapshot captured text or an image."),
+        "items": .object([
+            "type": .string("object"),
+            "properties": .object(["text": .object(["type": .string("string")]), "history_id": string, "label": .object(["type": .string("string")])]),
+            "oneOf": .array([.object(["required": .array([.string("text")])]), .object(["required": .array([.string("history_id")])])]),
+            "additionalProperties": .bool(false)
+        ])
     ])
     private static var specs: [ToolSpec] {
         let queue: [String: JSONValue] = ["queue_id": string]
@@ -31,17 +36,17 @@ enum CliprillMCP {
             ToolSpec(name: name, description: description, properties: properties, required: required, readOnly: read)
         }
         return [
-            spec("queue_create", "Atomically create a paused FIFO text queue. Array order is paste order. Does not type into an application.", ["title": string, "items": items, "idempotency_key": string], ["items", "idempotency_key"]),
+            spec("queue_create", "Atomically create a paused FIFO queue of text and captured images. Array order is paste order. Does not type into an application.", ["title": string, "items": items, "idempotency_key": string], ["items", "idempotency_key"]),
             spec("queue_append", "Atomically append items. A retry with the same key and arguments returns the original result.", write.merging(["items": items]) { $1 }, ["queue_id", "items", "idempotency_key"]),
             spec("queue_list", "List saved queue metadata and the active queue ID without clipboard text. Works while the panel is closed.", [:], [], true),
-            spec("queue_get", "Read queue state and up to 100 items per page. Follow next_offset for more; item_ids always lists the full order. Text is omitted unless include_content is true. Dispatched means a paste key event was sent, not confirmed target receipt.", queue.merging(["include_content": .object(["type": .string("boolean"), "default": .bool(false)]), "offset": integer, "limit": .object(["type": .string("integer"), "minimum": .integer(1), "maximum": .integer(100)])]) { $1 }, ["queue_id"], true),
+            spec("queue_get", "Read queue state and up to 100 items per page. Follow next_offset for more; item_ids always lists the full order. Text is omitted unless include_content is true. Image items return kind and dimensions/size metadata, never binary image data. Dispatched means a paste key event was sent, not confirmed target receipt.", queue.merging(["include_content": .object(["type": .string("boolean"), "default": .bool(false)]), "offset": integer, "limit": .object(["type": .string("integer"), "minimum": .integer(1), "maximum": .integer(100)])]) { $1 }, ["queue_id"], true),
             spec("queue_reorder", "Reorder every remaining item by ID. Include each unconsumed ID exactly once; consumed prefix stays fixed.", write.merging(["item_ids": .object(["type": .string("array"), "items": string])]) { $1 }, ["queue_id", "item_ids", "expected_revision", "idempotency_key"]),
             spec("queue_remove", "Remove one remaining queue item; history is preserved.", write.merging(["item_id": string]) { $1 }, ["queue_id", "item_id", "expected_revision", "idempotency_key"]),
             spec("queue_delete", "Delete a saved queue. Clipboard history is preserved.", write, ["queue_id", "expected_revision", "idempotency_key"]),
             spec("queue_activate", "Activate a queue for ordinary Command-V, and prepare its head on the clipboard. Requires Accessibility permission. Does not paste by itself.", write, ["queue_id", "idempotency_key"]),
             spec("queue_pause", "Pause sequential paste and keep all remaining items.", write, ["queue_id", "idempotency_key"]),
             spec("queue_undo_last", "Restore the last dispatched item as next and pause. Does not undo text in the target app.", write, ["queue_id", "idempotency_key"]),
-            spec("history_search", "Search captured local text history. Returns text, source, timestamps and bounded pagination.", ["query": .object(["type": .string("string")]), "limit": .object(["type": .string("integer"), "minimum": .integer(1), "maximum": .integer(100)]), "offset": integer], [], true)
+            spec("history_search", "Search local text and image history. Returns text or image metadata, source, timestamps and pagination. Use a returned id as history_id when creating or appending a queue; image pixels are never returned.", ["query": .object(["type": .string("string")]), "limit": .object(["type": .string("integer"), "minimum": .integer(1), "maximum": .integer(100)]), "offset": integer], [], true)
         ]
     }
 

@@ -30,7 +30,7 @@
 "queue.empty" = "Ready for a new queue";
 "queue.empty.detail" = "Add items from History, or create a queue.";
 "history.empty" = "Your next copy starts here";
-"history.empty.detail" = "Copy text in any app to keep it nearby.";
+"history.empty.detail" = "Copy text or images, then find them here.";
 "status.active" = "⌘V pastes next";
 "status.paused" = "Paused";
 "status.recovered" = "Restored · paused";
@@ -49,7 +49,7 @@
 "split.lines" = "One item per line";
 "enter.text" = "Enter some text first.";
 "cancel" = "Cancel";
-"capture.history" = "Save copied text to history";
+"capture.history" = "Save copied text and images to history";
 "history.limit" = "Maximum history items";
 "history.retention" = "Keep history for";
 "days" = "days";
@@ -88,3 +88,4 @@
 "settings.general" = "Shortcut";
 "settings.integration" = "Integrations";
 "settings.mcp" = "Connect an AI assistant";
+"image" = "Image";

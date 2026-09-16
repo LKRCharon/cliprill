@@ -17,9 +17,11 @@ let package = Package(
     targets: [
         .systemLibrary(name: "CSQLite", pkgConfig: "sqlite3"),
         .target(name: "CliprillCore", dependencies: ["CSQLite"]),
-        .executableTarget(name: "CliprillApp", dependencies: ["CliprillCore", "KeyboardShortcuts"], resources: [.process("Resources")]),
+        .target(name: "CliprillClipboard", dependencies: ["CliprillCore"]),
+        .executableTarget(name: "CliprillApp", dependencies: ["CliprillCore", "CliprillClipboard", "KeyboardShortcuts"], resources: [.process("Resources")]),
         .executableTarget(name: "CliprillMCP", dependencies: ["CliprillCore", .product(name: "MCP", package: "swift-sdk")]),
-        .testTarget(name: "CliprillCoreTests", dependencies: ["CliprillCore"])
+        .testTarget(name: "CliprillCoreTests", dependencies: ["CliprillCore"]),
+        .testTarget(name: "CliprillClipboardTests", dependencies: ["CliprillClipboard"])
     ],
     swiftLanguageModes: [.v5]
 )

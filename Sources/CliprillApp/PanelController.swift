@@ -49,7 +49,9 @@ private final class ClipRowView: NSTableRowView {
 }
 private final class ClipCell: NSTableCellView {
     var trailing: ActionButton?
-    init(title: String, detail: String, position: String, next: Bool, add: (() -> Void)?) {
+    private let thumbnailView = NSImageView()
+    func setThumbnail(_ image: NSImage) { thumbnailView.image = image }
+    init(title: String, detail: String, position: String, next: Bool, image: ClipboardImage? = nil, add: (() -> Void)?) {
         super.init(frame: .zero)
         let primary = bodyLabel(title.isEmpty ? L("empty.text") : title, size: 14)
         let secondary = bodyLabel(detail, size: 12, secondary: true)
@@ -58,7 +60,9 @@ private final class ClipCell: NSTableCellView {
             label.translatesAutoresizingMaskIntoConstraints = false; addSubview(label)
         }
         let leading: NSView
-        if position.isEmpty {
+        if image != nil && position.isEmpty {
+            leading = thumbnailView
+        } else if position.isEmpty {
             let icon = NSImageView(image: ClipIcon.text.image())
             icon.contentTintColor = CliprillAppearance.secondary; leading = icon
         } else {
@@ -67,10 +71,22 @@ private final class ClipCell: NSTableCellView {
             number.alignment = .center; leading = number
         }
         leading.translatesAutoresizingMaskIntoConstraints = false; addSubview(leading)
+        if image != nil {
+            thumbnailView.imageScaling = .scaleProportionallyUpOrDown
+            thumbnailView.wantsLayer = true; thumbnailView.layer?.cornerRadius = 5
+            thumbnailView.layer?.cornerCurve = .continuous; thumbnailView.layer?.masksToBounds = true
+            thumbnailView.setAccessibilityLabel(L("image"))
+            thumbnailView.translatesAutoresizingMaskIntoConstraints = false
+            thumbnailView.heightAnchor.constraint(equalToConstant: 36).isActive = true
+            if !position.isEmpty {
+                addSubview(thumbnailView)
+                NSLayoutConstraint.activate([thumbnailView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 36), thumbnailView.centerYAnchor.constraint(equalTo: centerYAnchor), thumbnailView.widthAnchor.constraint(equalToConstant: 36)])
+            }
+        }
         NSLayoutConstraint.activate([
             leading.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            leading.widthAnchor.constraint(equalToConstant: 20), leading.centerYAnchor.constraint(equalTo: centerYAnchor),
-            primary.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 40),
+            leading.widthAnchor.constraint(equalToConstant: image != nil && position.isEmpty ? 36 : 20), leading.centerYAnchor.constraint(equalTo: centerYAnchor),
+            primary.leadingAnchor.constraint(equalTo: leadingAnchor, constant: image == nil ? 40 : (position.isEmpty ? 58 : 84)),
             primary.topAnchor.constraint(equalTo: topAnchor, constant: 8),
             primary.trailingAnchor.constraint(equalTo: trailingAnchor, constant: next ? -64 : (add == nil ? -12 : -40)),
             secondary.leadingAnchor.constraint(equalTo: primary.leadingAnchor),
@@ -88,6 +104,7 @@ private final class ClipCell: NSTableCellView {
             addSubview(button); trailing = button
             NSLayoutConstraint.activate([button.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5), button.centerYAnchor.constraint(equalTo: centerYAnchor)])
         }
+        toolTip = [title, detail].joined(separator: "\n")
         setAccessibilityLabel([position, title, next ? L("next") : "", detail].filter { !$0.isEmpty }.joined(separator: ", "))
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -109,6 +126,8 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     private var toggle: ActionButton!
     private var emptyAction: ActionButton!
     private var preview: NSPopover?
+    private var previewTask: Task<Void, Never>?
+    private let thumbnails = NSCache<NSString, NSImage>()
     private var editor: ImportController?
     private var monitor: Any?
     private var globalMonitor: Any?
@@ -131,6 +150,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         panel.hidesOnDeactivate = false; panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear; panel.isOpaque = false; panel.hasShadow = true
         super.init(window: panel); panel.delegate = self
+        thumbnails.countLimit = 128
         build()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.window?.isKeyWindow == true, self.editor == nil else { return event }
@@ -284,9 +304,9 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     private func reloadRows() {
         let selectedID = inQueue ? queueRows[safe: table.selectedRow]?.id : historyRows[safe: table.selectedRow]?.id
         let query = search.stringValue
-        historyRows = history.filter { query.isEmpty || $0.text.localizedCaseInsensitiveContains(query) }
+        historyRows = history.filter { matches(text: $0.text, image: $0.image, query: query) || $0.source.localizedCaseInsensitiveContains(query) }
         queueRows = Array((currentQueue?.items ?? []).dropFirst(currentQueue?.cursor ?? 0)).filter {
-            query.isEmpty || $0.text.localizedCaseInsensitiveContains(query) || $0.label.localizedCaseInsensitiveContains(query)
+            matches(text: $0.text, image: $0.image, query: query) || $0.label.localizedCaseInsensitiveContains(query)
         }
         table.reloadData()
         let rowCount = inQueue ? queueRows.count : historyRows.count
@@ -382,12 +402,37 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         if inQueue, let item = queueRows[safe: row], let q = currentQueue {
             let index = q.items.firstIndex { $0.id == item.id } ?? 0
-            let detail = item.label.isEmpty ? "\(item.text.count) \(L("characters"))" : item.label
-            return ClipCell(title: compact(item.text), detail: detail, position: String(index + 1), next: index == q.cursor, add: nil)
+            let detail = item.image.map(imageDetail) ?? "\(item.text.count) \(L("characters"))"
+            let cell = ClipCell(title: item.image == nil ? compact(item.text) : (item.label.isEmpty ? L("image") : item.label),
+                                detail: item.label.isEmpty || item.image != nil ? detail : item.label,
+                                position: String(index + 1), next: index == q.cursor, image: item.image, add: nil)
+            loadThumbnail(item.image, into: cell)
+            return cell
         }
         guard let item = historyRows[safe: row] else { return nil }
         let date = RelativeDateTimeFormatter().localizedString(for: item.copiedAt, relativeTo: Date())
-        return ClipCell(title: compact(item.text), detail: [item.source, date].filter { !$0.isEmpty }.joined(separator: " · "), position: "", next: false) { [weak self] in self?.enqueue(item.text) }
+        let detail = [item.image.map(imageDetail) ?? "", item.source, date].filter { !$0.isEmpty }.joined(separator: " · ")
+        let cell = ClipCell(title: item.image == nil ? compact(item.text) : L("image"), detail: detail,
+                            position: "", next: false, image: item.image) { [weak self] in self?.enqueue(item) }
+        loadThumbnail(item.image, into: cell)
+        return cell
+    }
+    private func imageDetail(_ image: ClipboardImage) -> String {
+        "\(image.width) × \(image.height) · " + ByteCountFormatter.string(fromByteCount: Int64(image.byteCount), countStyle: .file)
+    }
+    private func matches(text: String, image: ClipboardImage?, query: String) -> Bool {
+        if query.isEmpty || text.localizedCaseInsensitiveContains(query) { return true }
+        guard let image else { return false }
+        return [L("image"), "image", "图片", "\(image.width) × \(image.height)"].contains { $0.localizedCaseInsensitiveContains(query) }
+    }
+    private func loadThumbnail(_ image: ClipboardImage?, into cell: ClipCell) {
+        guard let image else { return }
+        if let cached = thumbnails.object(forKey: image.id as NSString) { cell.setThumbnail(cached); return }
+        Task { [weak cell] in
+            guard let data = try? await appDelegate.core.imageData(image, thumbnail: true), let thumbnail = NSImage(data: data) else { return }
+            thumbnails.setObject(thumbnail, forKey: image.id as NSString)
+            cell?.setThumbnail(thumbnail)
+        }
     }
     private func compact(_ text: String) -> String { text.replacingOccurrences(of: "\r\n", with: " ↵ ").replacingOccurrences(of: "\n", with: " ↵ ").replacingOccurrences(of: "\t", with: "  ") }
     private func select(delta: Int) {
@@ -422,10 +467,10 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         run {
             try self.appDelegate.coordinator.ensureTap()
             self.window?.orderOut(nil)
-            try await self.appDelegate.coordinator.pasteHistory(item.text, target: self.appDelegate.target)
+            try await self.appDelegate.coordinator.pasteHistory(item, target: self.appDelegate.target)
         }
     }
-    private func enqueueSelected() { if let item = historyRows[safe: table.selectedRow], !inQueue { enqueue(item.text) } }
+    private func enqueueSelected() { if let item = historyRows[safe: table.selectedRow], !inQueue { enqueue(item) } }
     private func showActions(anchor: NSView? = nil) {
         let source = anchor ?? more!
         makeActionsMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: source.bounds.minY), in: source)
@@ -467,10 +512,10 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         default: break
         }
     }
-    private func enqueue(_ text: String) {
+    private func enqueue(_ item: HistoryItem) {
         let q = currentQueue
         run {
-            var args: [String: JSONValue] = ["items": .array([.object(["text": .string(text)])])]
+            var args: [String: JSONValue] = ["items": .array([.object(["history_id": .string(item.id)])])]
             if let q { args["queue_id"] = .string(q.id) } else { args["title"] = .string(L("queue.untitled")) }
             let result = try await self.appDelegate.perform(q == nil ? "queue_create" : "queue_append", args)
             self.selectedQueueID = result["queue_id"].string
@@ -491,14 +536,38 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         }
     }
     private func showPreview() {
-        let text = inQueue ? queueRows[safe: table.selectedRow]?.text : historyRows[safe: table.selectedRow]?.text
+        let row = table.selectedRow
+        let text = inQueue ? queueRows[safe: row]?.text : historyRows[safe: row]?.text
+        let image = inQueue ? queueRows[safe: row]?.image : historyRows[safe: row]?.image
         guard let text else { return }
-        let vc = NSViewController(); let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 440, height: 320)); scroll.hasVerticalScroller = true
-        let view = NSTextView(frame: scroll.bounds); view.string = text; view.isEditable = false; view.isSelectable = true; view.font = CliprillAppearance.font(14); view.backgroundColor = CliprillAppearance.windowBackground; view.textColor = CliprillAppearance.ink; view.textContainerInset = NSSize(width: 14, height: 14)
-        view.autoresizingMask = [.width]; view.textContainer?.widthTracksTextView = true; view.isVerticallyResizable = true
-        scroll.documentView = view; vc.view = scroll
-        let popover = NSPopover(); popover.contentViewController = vc; popover.behavior = .semitransient; popover.contentSize = scroll.frame.size
-        preview?.close(); preview = popover; popover.show(relativeTo: table.rect(ofRow: table.selectedRow), of: table, preferredEdge: .maxX)
+        previewTask?.cancel(); preview?.close()
+        let vc = NSViewController()
+        let size = NSSize(width: image == nil ? 440 : 560, height: image == nil ? 320 : 400)
+        if let image {
+            let root = SurfaceView(); root.frame = NSRect(origin: .zero, size: size)
+            let view = NSImageView(); view.imageScaling = .scaleProportionallyUpOrDown
+            view.setAccessibilityLabel(L("image") + " · " + imageDetail(image))
+            let caption = bodyLabel(imageDetail(image), size: 12, secondary: true)
+            for child in [view, caption] { child.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(child) }
+            NSLayoutConstraint.activate([view.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16), view.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16), view.topAnchor.constraint(equalTo: root.topAnchor, constant: 16), view.bottomAnchor.constraint(equalTo: caption.topAnchor, constant: -12), caption.centerXAnchor.constraint(equalTo: root.centerXAnchor), caption.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14)])
+            vc.view = root
+            previewTask = Task { [weak view] in
+                do {
+                    let data = try await appDelegate.core.imageData(image)
+                    guard !Task.isCancelled else { return }
+                    view?.image = NSImage(data: data)
+                } catch { if !Task.isCancelled { showMessage(error.localizedDescription) } }
+            }
+        } else {
+            let scroll = NSScrollView(frame: NSRect(origin: .zero, size: size)); scroll.hasVerticalScroller = true
+            let view = NSTextView(frame: scroll.bounds); view.string = text; view.isEditable = false; view.isSelectable = true
+            view.font = CliprillAppearance.font(14); view.backgroundColor = CliprillAppearance.windowBackground
+            view.textColor = CliprillAppearance.ink; view.textContainerInset = NSSize(width: 14, height: 14)
+            view.autoresizingMask = [.width]; view.textContainer?.widthTracksTextView = true; view.isVerticallyResizable = true
+            scroll.documentView = view; vc.view = scroll
+        }
+        let popover = NSPopover(); popover.contentViewController = vc; popover.behavior = .semitransient; popover.contentSize = size
+        preview = popover; popover.show(relativeTo: table.rect(ofRow: row), of: table, preferredEdge: .maxX)
     }
     private func showImport(append: Bool) {
         guard let window, editor == nil else { return }
