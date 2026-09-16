@@ -24,6 +24,8 @@ Light appearance uses white, with neutral hover and selection. Dark appearance u
 
 Controls retain native text editing and button/menu accessibility. Public Lucide 0.456.0 SVGs use a 24-unit grid, 1.75-unit stroke, 16 pt display size (18 pt in the menu bar), and 28 pt button targets. AppKit loads these vectors directly. Vendor/Lucide/manifest.json pins sources and hashes; scripts/prepare-icons.py reproduces resource copies. The full upstream ISC/Feather MIT notices ship in ThirdPartyNotices/Lucide-LICENSE. No proprietary reference assets are included.
 
+The search icon, native input and clear button occupy separate layout regions, with an 8 pt gap between the icon and input. The clear button's space stays reserved when the query is empty. A single 1 pt outline follows the 38 pt search surface; keyboard focus uses the system accent and Increased Contrast raises it to 2 pt. Placeholder text uses the secondary text color. Clicking the icon or input padding focuses search instead of dragging the panel.
+
 ## Accessibility permission
 
 Permission help appears when a paste or activation requires access, or from Settings. It explains the need, opens the macOS Accessibility page, and reveals the **running app bundle** in Finder when missing from the permission list. The user can drag that app into System Settings.

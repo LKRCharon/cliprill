@@ -113,7 +113,8 @@ private final class ClipCell: NSTableCellView {
 @MainActor
 final class PanelController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSWindowDelegate {
     unowned let appDelegate: AppDelegate
-    private let search = NSSearchField()
+    private let searchSurface = SearchFieldView()
+    private var search: NSSearchField { searchSurface.field }
     private let selector = NSPopUpButton()
     private let table = ClipTable()
     private let scroll = NSScrollView()
@@ -213,17 +214,8 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         stack.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14), stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14), stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16), stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)])
 
-        let searchSurface = SurfaceView(radius: 10); searchSurface.surfaceColor = CliprillAppearance.input
-        search.placeholderString = L("search.placeholder"); search.font = CliprillAppearance.font(14)
-        search.delegate = self; search.sendsSearchStringImmediately = true
-        search.isBordered = false; search.isBezeled = false; search.drawsBackground = false
-        search.focusRingType = .exterior; search.setAccessibilityLabel(L("search.placeholder"))
-        if let cell = search.cell as? NSSearchFieldCell {
-            cell.searchButtonCell?.image = ClipIcon.search.image()
-            cell.cancelButtonCell?.image = ClipIcon.close.image()
-        }
-        search.translatesAutoresizingMaskIntoConstraints = false; searchSurface.addSubview(search)
-        NSLayoutConstraint.activate([search.leadingAnchor.constraint(equalTo: searchSurface.leadingAnchor, constant: 8), search.trailingAnchor.constraint(equalTo: searchSurface.trailingAnchor, constant: -6), search.centerYAnchor.constraint(equalTo: searchSurface.centerYAnchor), search.heightAnchor.constraint(equalToConstant: 24), searchSurface.heightAnchor.constraint(equalToConstant: 38)])
+        search.delegate = self
+        searchSurface.onClear = { [weak self] in self?.clearSearch() }
         more = ActionButton(icon: .more, help: L("actions")) { [weak self] in self?.showActions() }
         let searchRow = horizontalRow([searchSurface, more]); searchSurface.setContentHuggingPriority(.defaultLow, for: .horizontal)
         stack.addArrangedSubview(searchRow)
@@ -302,6 +294,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         reloadRows()
     }
     private func reloadRows() {
+        searchSurface.refresh()
         let selectedID = inQueue ? queueRows[safe: table.selectedRow]?.id : historyRows[safe: table.selectedRow]?.id
         let query = search.stringValue
         historyRows = history.filter { matches(text: $0.text, image: $0.image, query: query) || $0.source.localizedCaseInsensitiveContains(query) }
@@ -360,6 +353,10 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         Task { try? await Task.sleep(nanoseconds: 4_100_000_000); if Date() >= messageUntil { updateStatus() } }
     }
     func controlTextDidChange(_ obj: Notification) { reloadRows(); if search.stringValue.isEmpty { resizeForContents() } }
+    func controlTextDidBeginEditing(_ obj: Notification) { searchSurface.needsDisplay = true }
+    func controlTextDidEndEditing(_ obj: Notification) { searchSurface.needsDisplay = true }
+    func windowDidBecomeKey(_ notification: Notification) { searchSurface.needsDisplay = true }
+    func windowDidResignKey(_ notification: Notification) { searchSurface.needsDisplay = true }
     private func clearSearch() { search.stringValue = ""; reloadRows(); resizeForContents(); window?.makeFirstResponder(search) }
     private func selectMode(queue: Bool) {
         guard inQueue != queue else { return }
