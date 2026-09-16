@@ -237,7 +237,9 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         table.setAccessibilityLabel(L("clipboard.items"))
         table.contextMenu = { [weak self] in self?.makeActionsMenu() ?? NSMenu() }
         scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
-        scroll.scrollerStyle = .overlay
+        scroll.borderType = .noBorder
+        scroll.verticalScroller = PanelScroller()
+        scroll.scrollerStyle = NSScroller.preferredScrollerStyle
         let list = NSView(); scroll.translatesAutoresizingMaskIntoConstraints = false; list.addSubview(scroll)
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo: list.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: list.trailingAnchor), scroll.topAnchor.constraint(equalTo: list.topAnchor), scroll.bottomAnchor.constraint(equalTo: list.bottomAnchor), list.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)])
         emptyTitle.font = CliprillAppearance.font(14, weight: .medium)

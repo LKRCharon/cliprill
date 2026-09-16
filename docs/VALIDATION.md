@@ -104,3 +104,16 @@ receiving application.
 - Automated clipboard checks do not read or overwrite the user's general
   clipboard and do not dispatch a key event. Physical destination-app reception
   and visual appearance remain for user feedback.
+
+## 2026-09-16 panel polish for 0.3.0
+
+- The local arm64 build passes all 24 Swift tests, release packaging and the four
+  signing identity/tamper checks. The packaged MCP smoke test passes with 11 tools
+  using an isolated data directory and capture disabled.
+- Search keeps the native editor and intrinsic line height. The list scroller
+  customizes only native part drawing, preserving AppKit's tracking and overlay
+  fading. No queue delivery or storage code changed.
+- No additional screenshot tuning or physical keyboard/IME tests were run for
+  this iteration. Automated checks do not verify the new rendered appearance.
+- Both architectures run the existing protected PR checks and repeat those
+  checks on the release tag before publishing their packages.
