@@ -39,7 +39,7 @@
 "permission.required" = "开启辅助功能权限后，可顺序粘贴。";
 "permission.reopen" = "请在辅助功能中启用 Cliprill；若仍未生效，请退出并重新打开 Cliprill。";
 "permission.ready" = "辅助功能已开启";
-"permission.missing" = "需要辅助功能权限";
+"permission.missing" = "当前这份 Cliprill 尚未获得权限";
 "secure.input" = "系统正在使用安全输入，请先完成敏感内容输入。";
 "clipboard.failed" = "未能写入剪贴板，队列已暂停。";
 "paste.failed" = "未能发送粘贴按键，当前项已保留。";
@@ -79,9 +79,9 @@
 "permission.reason" = "Cliprill 需要辅助功能权限，才能向其他应用发送粘贴按键，让每次 ⌘V 取出队列中的下一条。";
 "permission.steps" = "打开「系统设置 → 隐私与安全性 → 辅助功能」，开启 Cliprill 右侧的开关。";
 "permission.finder" = "在 Finder 中显示 Cliprill";
-"permission.finder.hint" = "列表里没有 Cliprill？在 Finder 中找到应用，再把它拖入辅助功能列表。";
+"permission.finder.hint" = "列表里没有 Cliprill？添加 Finder 中显示的应用。更新后开关已开启但仍不可用？移除旧条目，再添加当前这份应用。";
 "permission.success" = "已开启权限，可以继续了。";
-"permission.waiting" = "等待开启 Cliprill 的开关…";
+"permission.waiting" = "等待 macOS 授权当前应用…";
 "permission.optional" = "暂不开启也能保存复制历史。";
 "permission.settings.fallback" = "请手动打开系统设置中的「隐私与安全性 → 辅助功能」。";
 "continue" = "继续";

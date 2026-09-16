@@ -11,3 +11,8 @@ dist/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.p12
+*.pfx
+*.key
+*.keychain
+*.keychain-db

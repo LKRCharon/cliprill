@@ -9,11 +9,11 @@
    ```sh
    git switch main
    git pull --ff-only
-   git tag -a v0.2.0 -m 'Cliprill 0.2.0'
-   git push origin v0.2.0
+   git tag -a v0.2.1 -m 'Cliprill 0.2.1'
+   git push origin v0.2.1
    ```
 
-   Replace `0.2.0` with the new version. Existing release tags cannot be moved or
+   Replace `0.2.1` with the new version. Existing release tags cannot be moved or
    deleted; publish a new patch version when a release needs correction.
 
 The Release workflow runs the same CI on the tagged commit. Each native macOS
@@ -22,11 +22,13 @@ checks the tag against `CFBundleShortVersionString`. Publishing requires that th
 tagged commit belongs to `main` and that matching release notes exist.
 
 The workflow attaches arm64 and x86_64 ZIPs from that run, an archive of the exact
-source commit, and SHA-256 checksums. It uploads into a draft before publishing the
+source commit, the public signing certificate, and SHA-256 checksums. It uploads into a draft before publishing the
 complete release. Only the publishing job receives `contents: write`; PR checks
-use read permissions and do not receive secrets. Action revisions are pinned and
-Dependabot proposes updates weekly. Signing uses an ad-hoc identity; notarization
-is not part of this release process.
+use read permissions and do not receive release secrets. Action revisions are pinned
+and Dependabot proposes updates weekly. Official releases use the fixed self-signed
+identity in `Signing/Cliprill.pem`; notarization is not part of this release process.
+See [signing setup and verification](SIGNING.md). PR/main CI use disposable signing
+identities and a separate bundle ID; only tag releases use the release certificate.
 
 If publication fails after creating a draft, inspect the workflow log and draft
 assets before retrying. The workflow does not overwrite an existing release.
@@ -47,3 +49,11 @@ also use PRs; approval count is zero for solo maintenance. The repository uses
 squash merges, deletes merged branches, and protects `v*` tags against update and
 deletion. Dependabot alerts, secret scanning, push protection and private security
 reporting are enabled in repository settings.
+
+The signing environment and tag-only policy are recorded in
+`.github/signing-environment.json` and `.github/signing-tag-policy.json`. Create
+the `release-signing` environment with the former and add its deployment-branch
+policy from the latter. Upload the two signing credentials as **environment**
+secrets, not repository secrets. Do not add those credentials to the `ci`
+environment. A release must pass the protected-main ancestry check and both
+native signing, package and MCP checks before it can publish.

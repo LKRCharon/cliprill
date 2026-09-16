@@ -19,6 +19,8 @@ jobs:
   verify:
     name: Verify
     uses: ./.github/workflows/ci.yml
+    with:
+      release_signing: true
 
   publish:
     name: Publish release
@@ -54,8 +56,9 @@ jobs:
           test -s "dist/Cliprill-$version-macOS-arm64.zip"
           test -s "dist/Cliprill-$version-macOS-x86_64.zip"
           git archive --format=zip --prefix="cliprill-$version/" --output="dist/cliprill-$version-source.zip" "$GITHUB_SHA"
+          cp Signing/Cliprill.pem dist/Cliprill-signing-certificate.pem
           cd dist
-          sha256sum ./*.zip > SHA256SUMS.txt
+          sha256sum ./*.zip ./*.pem > SHA256SUMS.txt
       - name: Publish complete release
         env:
           GH_TOKEN: ${{ github.token }}
