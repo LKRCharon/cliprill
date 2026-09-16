@@ -9,7 +9,7 @@ A small native macOS clipboard manager with a FIFO paste queue and an MCP interf
 Copy or import `A, A, B`, then press Command–V three times to paste `A`, `A`, `B`.
 The panel opens near your pointer. Queues also work through an embedded MCP helper.
 
-Cliprill 0.1.0 supports plain text, including multiline text. Requires macOS 14+.
+Cliprill 0.2.0 supports plain text and images, including mixed paste queues. Requires macOS 14+.
 The interface is available in English and Simplified Chinese.
 
 ## Install
@@ -35,7 +35,7 @@ the first launch. For a copy you trust, use **System Settings → Privacy & Secu
 Use the **⋯** or row context menu to reorder or remove remaining items and restore
 the last dispatched item. Restoring an item pauses
 the queue; it does not undo text inside the destination app. Enter pastes a history
-item; Option–Enter appends it to the queue. **Command–Y** or **Preview** in the menu shows complete text; Enter previews a queue item.
+item; Option–Enter appends it to the queue. **Command–Y** or **Preview** in the menu shows full text or an image; Enter previews a queue item.
 
 The panel uses a white surface in light appearance, adapts its height when opened
 or switching modes, and keeps the frame stable while typing a search. The **Next**
@@ -59,7 +59,7 @@ dispatch and the database commit can also cause an item to need manual review.
 The last dispatched item remains on the clipboard until the next real paste
 request. Distinct rapid presses are serialized with a 160 ms dispatch interval;
 holding Command–V does not repeatedly consume the queue. A slow target can still
-read late. V1 intercepts ordinary Command–V only, not menu/trackpad Paste, remapped
+read late. Cliprill intercepts ordinary Command–V only, not menu/trackpad Paste, remapped
 paste keys, Shift–Command–V, rich text, or file transfers. Secure Input and missing
 Accessibility permission prevent queue activation.
 

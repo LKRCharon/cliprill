@@ -116,7 +116,7 @@ final class SettingsController: NSWindowController {
         stack.addArrangedSubview(section(L("permission.title"), icon: .permission, views: [horizontalRow([permission, NSView(), grant])]))
         let mcp = ActionButton(title: L("copy.mcp.config"), icon: .clipboard) { [weak self] in self?.copyMCP() }
         stack.addArrangedSubview(section(L("settings.integration"), icon: .settings, views: [row(L("settings.mcp"), mcp)]))
-        let version = bodyLabel("Cliprill 0.1.0 · AGPL-3.0-only", size: 12, secondary: true)
+        let version = bodyLabel("Cliprill 0.2.0 · AGPL-3.0-only", size: 12, secondary: true)
         stack.addArrangedSubview(version)
         feedback.font = CliprillAppearance.font(12); feedback.textColor = CliprillAppearance.secondary; stack.addArrangedSubview(feedback)
         for view in stack.arrangedSubviews { view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
