@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      release_signing:
+        type: boolean
+        default: false
+        description: Use the protected release-signing environment on a version tag.
 
 permissions:
   contents: read
@@ -20,6 +25,32 @@ defaults:
     shell: bash
 
 jobs:
+  preflight:
+    name: Signing preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ inputs.release_signing }}
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a protected main commit before selecting signing credentials
+        if: ${{ inputs.release_signing }}
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+        run: |
+          test "$REF_TYPE" = tag
+          test "$REF_PROTECTED" = true
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          test -s "docs/releases/${RELEASE_TAG#v}.md"
+      - name: Allow disposable signing for ordinary CI
+        if: ${{ !inputs.release_signing }}
+        run: echo 'No release credentials are needed.'
+
   repository:
     name: Repository checks
     runs-on: ubuntu-24.04
@@ -37,6 +68,7 @@ jobs:
 
   build:
     name: Test and package (${{ matrix.arch }})
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:
@@ -46,14 +78,17 @@ jobs:
           - runner: macos-15-intel
             arch: x86_64
     runs-on: ${{ matrix.runner }}
+    environment: ${{ inputs.release_signing && 'release-signing' || 'ci' }}
     timeout-minutes: 35
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
       EXPECTED_ARCH: ${{ matrix.arch }}
+      CLIPRILL_BUILD_BUNDLE_ID: ${{ inputs.release_signing && 'org.cliprill.Cliprill' || 'org.cliprill.Cliprill.ci' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Check toolchain and architecture
         run: |
           xcodebuild -version
@@ -70,8 +105,19 @@ jobs:
           git diff --exit-code -- Package.resolved
       - name: Run Swift tests
         run: swift test --disable-automatic-resolution
+      - name: Prepare isolated test signing identity
+        if: ${{ !inputs.release_signing }}
+        run: python3 scripts/signing-keychain.py prepare --ephemeral --state-dir "$RUNNER_TEMP/cliprill-signing"
+      - name: Import fixed release signing identity
+        if: ${{ inputs.release_signing }}
+        env:
+          CLIPRILL_SIGNING_P12: ${{ secrets.CLIPRILL_SIGNING_P12 }}
+          CLIPRILL_SIGNING_PASSWORD: ${{ secrets.CLIPRILL_SIGNING_PASSWORD }}
+        run: python3 scripts/signing-keychain.py prepare --certificate Signing/Cliprill.pem --state-dir "$RUNNER_TEMP/cliprill-signing"
       - name: Build and verify release application
-        run: python3 scripts/build-app.py --output "$RUNNER_TEMP/package/Cliprill.app"
+        run: python3 scripts/build-app.py --bundle-id "$CLIPRILL_BUILD_BUNDLE_ID" --output "$RUNNER_TEMP/package/Cliprill.app"
+      - name: Verify identity across upgrades and reject tampered bundles
+        run: python3 scripts/test-signing.py "$RUNNER_TEMP/package/Cliprill.app"
       - name: Exercise packaged MCP and app restart
         run: python3 scripts/smoke-mcp.py "$RUNNER_TEMP/package/Cliprill.app"
       - name: Archive verified application
@@ -93,18 +139,23 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
           retention-days: 14
+      - name: Remove temporary signing keychain
+        if: ${{ always() }}
+        run: python3 scripts/signing-keychain.py cleanup --state-dir "$RUNNER_TEMP/cliprill-signing"
 
   required:
     name: CI
     if: ${{ always() }}
-    needs: [repository, build]
+    needs: [preflight, repository, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every check to succeed
         env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           REPOSITORY_RESULT: ${{ needs.repository.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         run: |
+          test "$PREFLIGHT_RESULT" = success
           test "$REPOSITORY_RESULT" = success
           test "$BUILD_RESULT" = success

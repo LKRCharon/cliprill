@@ -9,7 +9,7 @@ A small native macOS clipboard manager with a FIFO paste queue and an MCP interf
 Copy or import `A, A, B`, then press Command–V three times to paste `A`, `A`, `B`.
 The panel opens near your pointer. Queues also work through an embedded MCP helper.
 
-Cliprill 0.2.0 supports plain text and images, including mixed paste queues. Requires macOS 14+.
+Cliprill 0.2.1 supports plain text and images, including mixed paste queues. Requires macOS 14+.
 The interface is available in English and Simplified Chinese.
 
 ## Install
@@ -19,9 +19,15 @@ Download the matching ZIP from [Releases](https://github.com/LKRCharon/cliprill/
 `Cliprill.app`; you can move it to Applications first. `SHA256SUMS.txt` accompanies
 each release, and the source archive matches the tagged commit.
 
-The app is ad-hoc signed, not Developer ID signed or notarized. macOS may block
+Official releases use a fixed self-signed certificate, without Developer ID signing
+or Apple notarization. macOS may block
 the first launch. For a copy you trust, use **System Settings → Privacy & Security
 → Open Anyway**. Sequential paste also requires Accessibility access for that app.
+
+When upgrading from 0.2.0 or earlier, remove the old Cliprill entry from
+**Privacy & Security → Accessibility**, add `/Applications/Cliprill.app` again,
+and enable it. The old grant identifies the previous ad-hoc signature. Subsequent
+releases retain the certificate and bundle ID. See [signing and upgrades](docs/SIGNING.md).
 
 ## Start using it
 
@@ -167,8 +173,10 @@ python3 scripts/build-app.py
 
 `Package.resolved` pins remote dependencies. KeyboardShortcuts 2.3.0 is vendored with
 one documented resource-loader adaptation for signed app bundles. The script packages the two binaries,
-localized resources, original generated icon and dependency notices, then ad-hoc
-signs and verifies the bundle. Output defaults to `../Cliprill.app`.
+localized resources, original generated icon and dependency notices, then signs
+and verifies the bundle. It uses a configured signing identity when available;
+unconfigured contributor builds remain ad-hoc signed. Output defaults to
+`../Cliprill.app`. See [signing setup](docs/SIGNING.md) for certificate signing.
 
 For an isolated manual test build:
 

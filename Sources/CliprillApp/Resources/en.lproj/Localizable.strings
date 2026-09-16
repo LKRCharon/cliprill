@@ -39,7 +39,7 @@
 "permission.required" = "Allow Accessibility to use sequential paste.";
 "permission.reopen" = "Enable Cliprill in Accessibility. If access is still unavailable, quit and reopen Cliprill.";
 "permission.ready" = "Accessibility enabled";
-"permission.missing" = "Accessibility permission needed";
+"permission.missing" = "This copy of Cliprill needs access";
 "secure.input" = "Secure Input is enabled. Finish entering sensitive text first.";
 "clipboard.failed" = "Could not write to the clipboard. The queue is paused.";
 "paste.failed" = "Could not send the paste event. The item was kept.";
@@ -79,9 +79,9 @@
 "permission.reason" = "Cliprill needs Accessibility access to send paste commands to your apps and move through a queue with ⌘V.";
 "permission.steps" = "Open System Settings → Privacy & Security → Accessibility, then turn on Cliprill.";
 "permission.finder" = "Show Cliprill in Finder";
-"permission.finder.hint" = "Cliprill missing from the list? Reveal it in Finder, then drag the app into the Accessibility list.";
+"permission.finder.hint" = "Missing from the list? Add the app shown in Finder. Already enabled but unavailable after an update? Remove the old entry, then add this copy again.";
 "permission.success" = "Access enabled. Continue when you’re ready.";
-"permission.waiting" = "Waiting for the Cliprill switch…";
+"permission.waiting" = "Waiting for macOS to grant this app access…";
 "permission.optional" = "Copied text can still be collected without this.";
 "permission.settings.fallback" = "Open Privacy & Security → Accessibility in System Settings.";
 "continue" = "Continue";

@@ -6,12 +6,18 @@ a fixture.
 
 ## Automated release checks
 
-GitHub Actions runs the Swift test suite, release packaging, strict ad-hoc signature
+GitHub Actions runs the Swift test suite, release packaging, strict code-signature
 verification and packaged MCP integration tests on native arm64 and x86_64 macOS
 15 runners with Xcode 16.4. The required `CI` check also validates workflow syntax
 and requires the dependency lockfile and notices to remain unchanged by the build.
 Tag releases repeat those checks and publish the artifacts from that tagged run.
 These checks do not simulate a physical paste into a destination application.
+
+From 0.2.1, tag builds pin a fixed self-signed certificate. PR/main builds use a
+disposable certificate and separate bundle ID. Four signing checks verify upgrade
+identity and rejection of changed resources, bundle IDs and missing certificates.
+The packaged app and MCP helper are both checked against the expected identity.
+See [signing and upgrades](SIGNING.md) for the one-time Accessibility migration.
 
 ## Original 0.1.0 verification
 

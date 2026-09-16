@@ -58,7 +58,7 @@ enum CliprillMCP {
                 let result = try await dispatch(name: CommandLine.arguments[2], arguments: args)
                 print(String(decoding: try result.encoded(), as: UTF8.self)); return
             }
-            let server = Server(name: "Cliprill", version: "0.2.0", capabilities: .init(tools: .init(listChanged: false)))
+            let server = Server(name: "Cliprill", version: "0.2.1", capabilities: .init(tools: .init(listChanged: false)))
             await server.withMethodHandler(ListTools.self) { _ in .init(tools: specs.map(\.tool)) }
             await server.withMethodHandler(CallTool.self) { params in
                 do {

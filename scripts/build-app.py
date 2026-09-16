@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Build an original, ad-hoc signed macOS application from this Swift package."""
+"""Build and sign a macOS application from this Swift package."""
 import argparse
 import pathlib
 import plistlib
 import shutil
 import subprocess
 import tempfile
+from signing import configuration, sign
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -23,7 +24,10 @@ def main():
     parser.add_argument("--configuration", choices=["debug", "release"], default="release")
     parser.add_argument("--output", type=pathlib.Path, default=ROOT.parent / "Cliprill.app")
     parser.add_argument("--bundle-id", default="org.cliprill.Cliprill")
+    parser.add_argument("--build-number", default="3")
+    parser.add_argument("--signing-config", type=pathlib.Path)
     opts = parser.parse_args()
+    signing = configuration(opts.signing_config)
     run("swift", "build", "-c", opts.configuration, "--disable-automatic-resolution")
     binary_dir = pathlib.Path(subprocess.check_output(["swift", "build", "-c", opts.configuration, "--show-bin-path"], cwd=ROOT, text=True).strip())
     destination = opts.output.resolve()
@@ -40,8 +44,8 @@ def main():
         info = {
             "CFBundleName": "Cliprill", "CFBundleDisplayName": "Cliprill",
             "CFBundleIdentifier": opts.bundle_id, "CFBundleExecutable": "Cliprill",
-            "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "0.2.0",
-            "CFBundleVersion": "2", "LSMinimumSystemVersion": "14.0", "LSUIElement": True,
+            "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "0.2.1",
+            "CFBundleVersion": opts.build_number, "LSMinimumSystemVersion": "14.0", "LSUIElement": True,
             "NSHighResolutionCapable": True, "CFBundleIconFile": "Cliprill.icns",
             "CFBundleDevelopmentRegion": "en", "CFBundleLocalizations": ["en", "zh-Hans"],
             "NSHumanReadableCopyright": "Cliprill contributors. AGPL-3.0-only."
@@ -63,10 +67,7 @@ def main():
                     copy_notice(source, notices / (checkout.name + "-" + source.name))
         copy_notice(ROOT / "Vendor/KeyboardShortcuts/license", notices / "KeyboardShortcuts-license")
         shutil.copytree(notices, resources / "ThirdPartyNotices")
-        for name in ["cliprill-mcp", "Cliprill"]:
-            run("codesign", "--force", "--sign", "-", str(macos / name))
-        run("codesign", "--force", "--deep", "--sign", "-", str(stage))
-        run("codesign", "--verify", "--deep", "--strict", str(stage))
+        sign(stage, **signing)
         if destination.exists():
             if destination.suffix != ".app":
                 raise RuntimeError("Output must be an .app directory")
