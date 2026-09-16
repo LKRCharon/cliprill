@@ -1,7 +1,8 @@
 # Signing and upgrades
 
-Starting with 0.2.2, official Cliprill releases share the self-signed certificate
-in [`Signing/Cliprill.pem`](../Signing/Cliprill.pem). No Apple Developer Program
+The 0.2.1 tag introduced the self-signed certificate configuration but produced no
+public download assets. Starting with 0.2.2, official Cliprill releases share that
+certificate in [`Signing/Cliprill.pem`](../Signing/Cliprill.pem). No Apple Developer Program
 subscription is used. This is not Developer ID signing or Apple notarization;
 downloaded apps may still require **Privacy & Security → Open Anyway**.
 
