@@ -239,6 +239,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
         scroll.borderType = .noBorder
         scroll.verticalScroller = PanelScroller()
+        // NSScrollView automatically follows subsequent system scroller-style changes.
         scroll.scrollerStyle = NSScroller.preferredScrollerStyle
         let list = NSView(); scroll.translatesAutoresizingMaskIntoConstraints = false; list.addSubview(scroll)
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo: list.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: list.trailingAnchor), scroll.topAnchor.constraint(equalTo: list.topAnchor), scroll.bottomAnchor.constraint(equalTo: list.bottomAnchor), list.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)])

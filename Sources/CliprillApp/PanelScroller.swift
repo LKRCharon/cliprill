@@ -3,6 +3,19 @@ import AppKit
 
 /// Restyle only the native scroller's parts, retaining its hit area and tracking.
 final class PanelScroller: NSScroller {
+    private var preferenceObserver: NSObjectProtocol?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        preferenceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.needsDisplay = true }
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    deinit {
+        if let preferenceObserver { NSWorkspace.shared.notificationCenter.removeObserver(preferenceObserver) }
+    }
+
     override class var isCompatibleWithOverlayScrollers: Bool { true }
     override var isOpaque: Bool { false }
 

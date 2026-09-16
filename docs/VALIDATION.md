@@ -112,7 +112,10 @@ receiving application.
   using an isolated data directory and capture disabled.
 - Search keeps the native editor and intrinsic line height. The list scroller
   customizes only native part drawing, preserving AppKit's tracking and overlay
-  fading. No queue delivery or storage code changed.
+  fading, and observes accessibility display changes to invalidate its custom
+  colors and width immediately. No queue delivery or storage code changed.
+- English and Simplified Chinese catalogs include the new clear-search label;
+  both pass plutil and have matching keys.
 - No additional screenshot tuning or physical keyboard/IME tests were run for
   this iteration. Automated checks do not verify the new rendered appearance.
 - Both architectures run the existing protected PR checks and repeat those

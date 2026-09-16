@@ -26,7 +26,7 @@ Controls retain native text editing and button/menu accessibility. Public Lucide
 
 The search icon, native input and clear button occupy separate layout regions, with an 8 pt gap between the icon and input. The input uses its native intrinsic height, centered with the icon, so placeholder text and the editing caret share the same vertical alignment. The clear button's space stays reserved when the query is empty. A single 1 pt outline follows the 38 pt search surface; keyboard focus uses the system accent and Increased Contrast raises it to 2 pt. Placeholder text uses the secondary text color. Clicking the icon or input padding focuses search instead of dragging the panel.
 
-The list scroller has no painted track or border and uses a 6 pt rounded thumb. Dragging or Increased Contrast widens it to 8 pt and strengthens its color. Native hit areas, dragging, scrolling and overlay fading remain in AppKit; the system's Show scroll bars preference controls whether it uses overlay or always-visible presentation.
+The list scroller has no painted track or border and uses a 6 pt rounded thumb. Dragging or Increased Contrast widens it up to 8 pt and strengthens its color. Accessibility display changes invalidate it immediately. Native hit areas, dragging, scrolling and overlay fading remain in AppKit; the system's Show scroll bars preference controls whether it uses overlay or always-visible presentation.
 
 ## Accessibility permission
 
