@@ -70,8 +70,15 @@ to install this certificate as a trusted root.
 The `release-signing` environment allows only `v*` tags. It stores
 `CLIPRILL_SIGNING_P12` (base64 of the encrypted archive) and
 `CLIPRILL_SIGNING_PASSWORD`. Reusable CI selects this environment only for the
-release workflow, checks the protected tag and main ancestry, and checks the
-imported certificate against the committed PEM before signing.
+release workflow. A separate job without secrets checks the protected tag and
+main ancestry before the signing jobs start. Each signer checks the imported
+certificate against the committed PEM.
+
+A repository ruleset restricts `v*` tag creation to administrators. This is the
+trust boundary for the workflow definition itself: an ancestry check inside a
+workflow cannot defend against a maintainer replacing that workflow on a tag.
+Administrators control both release tags and environment settings. A separate
+ruleset prevents tag updates and deletion without an administrator bypass.
 
 PR and main CI use the separate `ci` environment, a fresh disposable certificate
 and the `org.cliprill.Cliprill.ci` bundle ID. They do not receive the release key.

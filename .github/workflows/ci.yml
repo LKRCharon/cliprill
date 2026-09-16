@@ -25,6 +25,32 @@ defaults:
     shell: bash
 
 jobs:
+  preflight:
+    name: Signing preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ inputs.release_signing }}
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a protected main commit before selecting signing credentials
+        if: ${{ inputs.release_signing }}
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+        run: |
+          test "$REF_TYPE" = tag
+          test "$REF_PROTECTED" = true
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          test -s "docs/releases/${RELEASE_TAG#v}.md"
+      - name: Allow disposable signing for ordinary CI
+        if: ${{ !inputs.release_signing }}
+        run: echo 'No release credentials are needed.'
+
   repository:
     name: Repository checks
     runs-on: ubuntu-24.04
@@ -42,6 +68,7 @@ jobs:
 
   build:
     name: Test and package (${{ matrix.arch }})
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:
@@ -78,18 +105,6 @@ jobs:
           git diff --exit-code -- Package.resolved
       - name: Run Swift tests
         run: swift test --disable-automatic-resolution
-      - name: Require a protected main commit for release signing
-        if: ${{ inputs.release_signing }}
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-          REF_TYPE: ${{ github.ref_type }}
-          REF_PROTECTED: ${{ github.ref_protected }}
-        run: |
-          test "$REF_TYPE" = tag
-          test "$REF_PROTECTED" = true
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-          test -s "docs/releases/${RELEASE_TAG#v}.md"
       - name: Prepare isolated test signing identity
         if: ${{ !inputs.release_signing }}
         run: python3 scripts/signing-keychain.py prepare --ephemeral --state-dir "$RUNNER_TEMP/cliprill-signing"
@@ -131,14 +146,16 @@ jobs:
   required:
     name: CI
     if: ${{ always() }}
-    needs: [repository, build]
+    needs: [preflight, repository, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every check to succeed
         env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           REPOSITORY_RESULT: ${{ needs.repository.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         run: |
+          test "$PREFLIGHT_RESULT" = success
           test "$REPOSITORY_RESULT" = success
           test "$BUILD_RESULT" = success

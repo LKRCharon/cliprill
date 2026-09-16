@@ -55,5 +55,12 @@ The signing environment and tag-only policy are recorded in
 the `release-signing` environment with the former and add its deployment-branch
 policy from the latter. Upload the two signing credentials as **environment**
 secrets, not repository secrets. Do not add those credentials to the `ci`
-environment. A release must pass the protected-main ancestry check and both
-native signing, package and MCP checks before it can publish.
+environment. Apply `.github/release-tag-creation.json` as a tag ruleset to allow
+only repository administrators to create `v*` tags. Keep the separate tag
+update/deletion protection without bypasses. Release tag creators are trusted
+with the workflow definition and signing environment; a workflow-local ancestry
+check alone cannot enforce that boundary.
+
+A job without secrets checks protected-main ancestry before any signing job
+selects the release environment. Both native signing, package and MCP checks must
+pass before publication.
