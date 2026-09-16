@@ -122,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch request.method {
             case "app_show": if panel.window?.isVisible != true { togglePanel() }; return IPCResponse(result: .object(["visible": .bool(true)]))
             case "app_hide": panel.window?.orderOut(nil); return IPCResponse(result: .object(["visible": .bool(false)]))
-            case "app_status": return IPCResponse(result: .object(["version": .string("0.2.1"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "events": coordinator.diagnostics]))
+            case "app_status": return IPCResponse(result: .object(["version": .string("0.2.2"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "events": coordinator.diagnostics]))
             default: return IPCResponse(result: try await perform(request.method, request.arguments))
             }
         } catch { return IPCResponse(error: error) }

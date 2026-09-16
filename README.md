@@ -9,7 +9,7 @@ A small native macOS clipboard manager with a FIFO paste queue and an MCP interf
 Copy or import `A, A, B`, then press Command–V three times to paste `A`, `A`, `B`.
 The panel opens near your pointer. Queues also work through an embedded MCP helper.
 
-Cliprill 0.2.1 supports plain text and images, including mixed paste queues. Requires macOS 14+.
+Cliprill 0.2.2 supports plain text and images, including mixed paste queues. Requires macOS 14+.
 The interface is available in English and Simplified Chinese.
 
 ## Install

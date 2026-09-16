@@ -9,11 +9,11 @@
    ```sh
    git switch main
    git pull --ff-only
-   git tag -a v0.2.1 -m 'Cliprill 0.2.1'
-   git push origin v0.2.1
+   git tag -a v0.2.2 -m 'Cliprill 0.2.2'
+   git push origin v0.2.2
    ```
 
-   Replace `0.2.1` with the new version. Existing release tags cannot be moved or
+   Replace `0.2.2` with the new version. Existing release tags cannot be moved or
    deleted; publish a new patch version when a release needs correction.
 
 The Release workflow runs the same CI on the tagged commit. Each native macOS

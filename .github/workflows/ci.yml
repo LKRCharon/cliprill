@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
   workflow_call:
+    secrets:
+      CLIPRILL_SIGNING_P12:
+        required: false
+        description: Release identity, supplied by the release-signing environment.
+      CLIPRILL_SIGNING_PASSWORD:
+        required: false
+        description: Release identity password, supplied by the release-signing environment.
     inputs:
       release_signing:
         type: boolean
@@ -85,6 +92,14 @@ jobs:
       EXPECTED_ARCH: ${{ matrix.arch }}
       CLIPRILL_BUILD_BUNDLE_ID: ${{ inputs.release_signing && 'org.cliprill.Cliprill' || 'org.cliprill.Cliprill.ci' }}
     steps:
+      - name: Check release credential availability
+        if: ${{ inputs.release_signing }}
+        env:
+          CLIPRILL_SIGNING_P12: ${{ secrets.CLIPRILL_SIGNING_P12 }}
+          CLIPRILL_SIGNING_PASSWORD: ${{ secrets.CLIPRILL_SIGNING_PASSWORD }}
+        run: |
+          test -n "$CLIPRILL_SIGNING_P12" || { echo '::error::Release signing archive is unavailable'; exit 1; }
+          test -n "$CLIPRILL_SIGNING_PASSWORD" || { echo '::error::Release signing password is unavailable'; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
