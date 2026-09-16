@@ -18,6 +18,9 @@ final class SearchFieldView: SurfaceView {
         ])
         field.isBordered = false; field.isBezeled = false; field.drawsBackground = false
         field.focusRingType = .none
+        // Center the native line height; extra field height puts text and the caret above the icon.
+        field.setContentHuggingPriority(.required, for: .vertical)
+        field.setContentCompressionResistancePriority(.required, for: .vertical)
         field.sendsSearchStringImmediately = true
         field.setAccessibilityLabel(L("search.placeholder"))
         if let cell = field.cell as? NSSearchFieldCell {
@@ -38,7 +41,7 @@ final class SearchFieldView: SurfaceView {
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
             icon.widthAnchor.constraint(equalToConstant: 16), icon.heightAnchor.constraint(equalToConstant: 16),
             field.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
-            field.centerYAnchor.constraint(equalTo: centerYAnchor), field.heightAnchor.constraint(equalToConstant: 24),
+            field.centerYAnchor.constraint(equalTo: centerYAnchor),
             field.trailingAnchor.constraint(equalTo: clearButton.leadingAnchor, constant: -4),
             clearButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             clearButton.centerYAnchor.constraint(equalTo: centerYAnchor)
