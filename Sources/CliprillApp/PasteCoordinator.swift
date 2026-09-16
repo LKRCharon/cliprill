@@ -3,6 +3,7 @@ import AppKit
 import ApplicationServices
 import Carbon
 import CliprillCore
+import CliprillClipboard
 
 @MainActor
 final class PasteCoordinator {
@@ -18,6 +19,11 @@ final class PasteCoordinator {
     private var suppressedV = false
     private var polling = false
     private var accepting = false
+    private var headPreparation: Task<Void, Never>?
+    private var preparingItemID: String?
+    private var cachedImage: (id: String, content: ClipboardWrite)?
+    private var pauseDepth = 0
+    private var pasteEpoch = 0
     private var observedKeyEvents = 0
     private var observedPasteEvents = 0
     var noCapture = false
@@ -39,7 +45,7 @@ final class PasteCoordinator {
         }
     }
     func stop() {
-        timer?.invalidate()
+        timer?.invalidate(); headPreparation?.cancel()
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let tapSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), tapSource, .commonModes) }
     }
@@ -63,17 +69,45 @@ final class PasteCoordinator {
     func update(_ state: CoreState) {
         let oldID = queue?.id
         queue = state.activeQueue
-        accepting = queue != nil
-        if let q = queue, oldID != q.id, let item = q.next {
-            do { try write(item.text) }
-            catch { accepting = false; onMessage?(error.localizedDescription); Task { await pause(reason: "clipboard_unavailable") } }
+        accepting = queue != nil && pauseDepth == 0
+        guard let q = queue, let item = q.next else {
+            headPreparation?.cancel(); headPreparation = nil; preparingItemID = nil
+            return
+        }
+        guard oldID != q.id || (preparingItemID != nil && preparingItemID != item.id) else { return }
+        guard pauseDepth == 0 else { return }
+        headPreparation?.cancel()
+        preparingItemID = item.id
+        let change = NSPasteboard.general.changeCount
+        headPreparation = Task {
+            do {
+                let content = try await prepared(text: item.text, image: item.image)
+                try Task.checkCancellation()
+                guard queue?.id == q.id, queue?.next?.id == item.id else { return }
+                guard NSPasteboard.general.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
+                try write(content)
+                preparingItemID = nil
+            } catch is CancellationError {
+                // Navigation or pausing superseded this preparation.
+            } catch {
+                accepting = false; onMessage?(error.localizedDescription)
+                await pause(reason: (error as? CoreError)?.code ?? "clipboard_unavailable", waitForPump: false)
+            }
         }
     }
-    func write(_ text: String) throws {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        guard pb.setString(text, forType: .string) else { throw CoreError("clipboard", L("clipboard.failed")) }
-        observedChange = pb.changeCount
+    private func prepared(text: String, image: ClipboardImage?) async throws -> ClipboardWrite {
+        guard let image else { return .text(text) }
+        if let cachedImage, cachedImage.id == image.id { return cachedImage.content }
+        let png = try await core.imageData(image)
+        let content = try await Task.detached(priority: .userInitiated) { try ClipboardWrite.image(png: png) }.value
+        try Task.checkCancellation()
+        cachedImage = (image.id, content)
+        return content
+    }
+    func write(_ text: String) throws { try write(ClipboardWrite.text(text)) }
+    private func write(_ content: ClipboardWrite) throws {
+        try content.write(to: .general)
+        observedChange = NSPasteboard.general.changeCount
     }
     private func receive(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
@@ -102,7 +136,11 @@ final class PasteCoordinator {
     private func pump() async {
         defer { pumping = false }
         while !pending.isEmpty {
+            // A fast Cmd-V waits for image conversion instead of pasting the previous clipboard.
+            if let preparation = headPreparation { await preparation.value }
+            guard !pending.isEmpty else { return }
             let (pid, queueID) = pending.removeFirst()
+            let epoch = pasteEpoch
             var token: UUID?
             do {
                 guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw CoreError("target_changed", L("target.changed")) }
@@ -117,7 +155,12 @@ final class PasteCoordinator {
                     let r = try await core.reserveNext(); token = r.token
                     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw CoreError("target_changed", L("target.changed")) }
                     guard NSPasteboard.general.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
-                    try write(r.item.text)
+                    let content = try await prepared(text: r.item.text, image: r.item.image)
+                    guard accepting, epoch == pasteEpoch else { throw CoreError("queue_paused", L("status.paused")) }
+                    guard hasPermission, !IsSecureEventInputEnabled() else { throw CoreError("input_unavailable", L("permission.required")) }
+                    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw CoreError("target_changed", L("target.changed")) }
+                    guard NSPasteboard.general.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
+                    try write(content)
                     try sendPaste(to: pid)
                     try await core.commit(r.token); token = nil
                     await onChange?()
@@ -143,20 +186,28 @@ final class PasteCoordinator {
             event.postToPid(pid)
         }
     }
-    func pasteHistory(_ text: String, target: NSRunningApplication?) async throws {
+    func pasteHistory(_ item: HistoryItem, target: NSRunningApplication?) async throws {
         try ensureTap()
         guard let target, !target.isTerminated, target.processIdentifier != getpid() else { throw CoreError("target_changed", L("target.changed")) }
         await pause(reason: "history_paste")
+        let change = NSPasteboard.general.changeCount
+        let content = try await prepared(text: item.text, image: item.image)
+        guard NSPasteboard.general.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
+        try ensureTap()
         target.activate(options: [])
         for _ in 0..<20 {
             if NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier { break }
             try await Task.sleep(nanoseconds: 25_000_000)
         }
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier else { throw CoreError("target_changed", L("target.changed")) }
-        try write(text); try sendPaste(to: target.processIdentifier)
+        guard NSPasteboard.general.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
+        try write(content); try sendPaste(to: target.processIdentifier)
     }
     func pause(reason: String, waitForPump: Bool = true) async {
+        pauseDepth += 1; pasteEpoch += 1
+        defer { pauseDepth -= 1; accepting = queue != nil && pauseDepth == 0 }
         accepting = false; pending.removeAll()
+        headPreparation?.cancel(); headPreparation = nil; preparingItemID = nil
         if waitForPump { while pumping { try? await Task.sleep(nanoseconds: 20_000_000) } }
         if let id = (await core.snapshot()).activeID {
             do { _ = try await core.handle(IPCRequest(method: "queue_pause", arguments: ["queue_id": .string(id), "reason": .string(reason)])) }
@@ -170,16 +221,23 @@ final class PasteCoordinator {
         let pb = NSPasteboard.general
         guard pb.changeCount != observedChange else { return }
         observedChange = pb.changeCount
-        let types = Set((pb.types ?? []).map(\.rawValue))
-        let sensitive = !types.isDisjoint(with: ["org.nspasteboard.TransientType", "org.nspasteboard.ConcealedType", "org.nspasteboard.AutoGeneratedType", "com.agilebits.onepassword"])
         let source = NSWorkspace.shared.frontmostApplication
-        let text = sensitive ? nil : pb.string(forType: .string)
-        if queue != nil { await pause(reason: "external_copy"); onMessage?(L("copied.paused")) }
         let prefs = UserDefaults.standard
         let excluded = Set((prefs.string(forKey: "excludedApps") ?? "com.1password.1password\ncom.agilebits.onepassword7\ncom.apple.keychainaccess").split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) })
-        guard !noCapture, prefs.bool(forKey: "captureEnabled"), !excluded.contains(source?.bundleIdentifier ?? ""), let text else { return }
+        let shouldCapture = !noCapture && prefs.bool(forKey: "captureEnabled") && !excluded.contains(source?.bundleIdentifier ?? "")
+        let content = shouldCapture ? ClipboardReader.read(from: pb) : nil
+        if queue != nil { await pause(reason: "external_copy"); onMessage?(L("copied.paused")) }
+        guard let content else { return }
         do {
-            try await core.capture(text: text, source: source?.localizedName ?? "", capacity: prefs.integer(forKey: "historyCapacity"), retentionDays: prefs.integer(forKey: "retentionDays"))
+            switch content {
+            case .text(let text):
+                try await core.capture(text: text, source: source?.localizedName ?? "", capacity: prefs.integer(forKey: "historyCapacity"), retentionDays: prefs.integer(forKey: "retentionDays"))
+            case .image(let data):
+                let image = try await Task.detached(priority: .utility) { try PreparedClipboardImage(data: data) }.value
+                // Respect a capture preference change made while a large image was decoding.
+                guard !noCapture, prefs.bool(forKey: "captureEnabled") else { return }
+                try await core.capture(image: image, source: source?.localizedName ?? "", capacity: prefs.integer(forKey: "historyCapacity"), retentionDays: prefs.integer(forKey: "retentionDays"))
+            }
             await onChange?()
         } catch { onMessage?(error.localizedDescription) }
     }

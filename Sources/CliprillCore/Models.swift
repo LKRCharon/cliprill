@@ -51,7 +51,8 @@ public struct QueueItem: Codable, Sendable, Identifiable, Equatable {
     public var id: String = UUID().uuidString
     public var text: String
     public var label: String
-    public init(text: String, label: String = "") { self.text = text; self.label = label }
+    public var image: ClipboardImage?
+    public init(text: String, label: String = "", image: ClipboardImage? = nil) { self.text = text; self.label = label; self.image = image }
 }
 public enum QueueStatus: String, Codable, Sendable { case paused, active, completed }
 public struct ClipQueue: Codable, Sendable, Identifiable, Equatable {
@@ -71,9 +72,10 @@ public struct HistoryItem: Codable, Sendable, Identifiable, Equatable {
     public var text: String
     public var source: String
     public var copiedAt: Date = Date()
+    public var image: ClipboardImage?
 }
 public struct CoreState: Codable, Sendable {
-    public var schema: Int = 1
+    public var schema: Int = 2
     public var queues: [ClipQueue] = []
     public var history: [HistoryItem] = []
     public var activeID: String? = nil

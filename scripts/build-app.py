@@ -40,8 +40,8 @@ def main():
         info = {
             "CFBundleName": "Cliprill", "CFBundleDisplayName": "Cliprill",
             "CFBundleIdentifier": opts.bundle_id, "CFBundleExecutable": "Cliprill",
-            "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "0.1.0",
-            "CFBundleVersion": "1", "LSMinimumSystemVersion": "14.0", "LSUIElement": True,
+            "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "0.2.0",
+            "CFBundleVersion": "2", "LSMinimumSystemVersion": "14.0", "LSUIElement": True,
             "NSHighResolutionCapable": True, "CFBundleIconFile": "Cliprill.icns",
             "CFBundleDevelopmentRegion": "en", "CFBundleLocalizations": ["en", "zh-Hans"],
             "NSHumanReadableCopyright": "Cliprill contributors. AGPL-3.0-only."

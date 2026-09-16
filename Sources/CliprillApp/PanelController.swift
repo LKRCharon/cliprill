@@ -6,55 +6,106 @@ final class ClipPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
-final class ActionButton: NSButton {
-    var handler: (() -> Void)?
-    convenience init(symbol: String, help: String, handler: @escaping () -> Void) {
-        self.init(frame: .zero)
-        image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)
-        imagePosition = .imageOnly; bezelStyle = .accessoryBarAction; isBordered = false
-        toolTip = help; setAccessibilityLabel(help)
-        self.handler = handler; target = self; action = #selector(run)
-        translatesAutoresizingMaskIntoConstraints = false
-        widthAnchor.constraint(equalToConstant: 28).isActive = true
-        heightAnchor.constraint(equalToConstant: 28).isActive = true
+private final class PanelDragHandle: NSView {
+    override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+}
+private final class ClipTable: NSTableView {
+    var contextMenu: (() -> NSMenu)?
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let index = row(at: convert(event.locationInWindow, from: nil))
+        if index >= 0 { selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false) }
+        return contextMenu?()
     }
-    @objc private func run() { handler?() }
 }
 private final class ClipRowView: NSTableRowView {
+    private var hovering = false
+    private var tracking: NSTrackingArea?
+    override var isSelected: Bool { didSet { updateActions() } }
+    override func didAddSubview(_ subview: NSView) { super.didAddSubview(subview); updateActions() }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        tracking = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .inVisibleRect, .activeAlways], owner: self)
+        addTrackingArea(tracking!)
+    }
+    override func mouseEntered(with event: NSEvent) { hovering = true; updateActions() }
+    override func mouseExited(with event: NSEvent) { hovering = false; updateActions() }
+    private func updateActions() {
+        for cell in subviews.compactMap({ $0 as? ClipCell }) { cell.trailing?.isHidden = !(hovering || isSelected) }
+        needsDisplay = true
+    }
+    override func drawBackground(in dirtyRect: NSRect) {
+        if hovering && !isSelected {
+            CliprillAppearance.hover.setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 1), xRadius: 10, yRadius: 10).fill()
+        }
+    }
     override func drawSelection(in dirtyRect: NSRect) {
-        NSColor.controlAccentColor.withAlphaComponent(isEmphasized ? 0.16 : 0.11).setFill()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 2), xRadius: 7, yRadius: 7).fill()
+        CliprillAppearance.selection.setFill()
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 1), xRadius: 10, yRadius: 10)
+        path.fill()
+        if CliprillAppearance.highContrast { CliprillAppearance.secondary.setStroke(); path.lineWidth = 1; path.stroke() }
     }
 }
 private final class ClipCell: NSTableCellView {
-    let primary = NSTextField(labelWithString: "")
-    let secondary = NSTextField(labelWithString: "")
-    let number = NSTextField(labelWithString: "")
     var trailing: ActionButton?
-    init(title: String, detail: String, position: String, next: Bool, add: (() -> Void)?) {
+    private let thumbnailView = NSImageView()
+    func setThumbnail(_ image: NSImage) { thumbnailView.image = image }
+    init(title: String, detail: String, position: String, next: Bool, image: ClipboardImage? = nil, add: (() -> Void)?) {
         super.init(frame: .zero)
-        primary.stringValue = title.isEmpty ? L("empty.text") : title
-        primary.font = .systemFont(ofSize: 13, weight: next ? .medium : .regular)
-        secondary.stringValue = detail; secondary.font = .systemFont(ofSize: 11); secondary.textColor = .secondaryLabelColor
-        number.stringValue = position; number.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        number.textColor = next ? .systemTeal : .tertiaryLabelColor; number.alignment = .center
-        for label in [primary, secondary, number] { label.lineBreakMode = .byTruncatingTail; label.maximumNumberOfLines = 1; label.translatesAutoresizingMaskIntoConstraints = false; addSubview(label) }
-        let icon = NSImageView(image: NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: nil)!)
-        icon.contentTintColor = .tertiaryLabelColor; icon.translatesAutoresizingMaskIntoConstraints = false
-        if position.isEmpty { addSubview(icon) }
-        let leading = position.isEmpty ? 36.0 : 38.0
-        NSLayoutConstraint.activate([
-            number.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4), number.widthAnchor.constraint(equalToConstant: 26), number.centerYAnchor.constraint(equalTo: centerYAnchor),
-            primary.leadingAnchor.constraint(equalTo: leadingAnchor, constant: leading), primary.topAnchor.constraint(equalTo: topAnchor, constant: 7), primary.trailingAnchor.constraint(equalTo: trailingAnchor, constant: add == nil ? -10 : -38),
-            secondary.leadingAnchor.constraint(equalTo: primary.leadingAnchor), secondary.topAnchor.constraint(equalTo: primary.bottomAnchor, constant: 3), secondary.trailingAnchor.constraint(equalTo: primary.trailingAnchor)
-        ])
-        if position.isEmpty { NSLayoutConstraint.activate([icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10), icon.widthAnchor.constraint(equalToConstant: 15), icon.centerYAnchor.constraint(equalTo: centerYAnchor)]) }
-        if let add {
-            let button = ActionButton(symbol: "plus", help: L("add.queue"), handler: add)
-            button.contentTintColor = .secondaryLabelColor; addSubview(button); trailing = button
-            NSLayoutConstraint.activate([button.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4), button.centerYAnchor.constraint(equalTo: centerYAnchor)])
+        let primary = bodyLabel(title.isEmpty ? L("empty.text") : title, size: 14)
+        let secondary = bodyLabel(detail, size: 12, secondary: true)
+        for label in [primary, secondary] {
+            label.lineBreakMode = .byTruncatingTail; label.maximumNumberOfLines = 1
+            label.translatesAutoresizingMaskIntoConstraints = false; addSubview(label)
         }
-        setAccessibilityLabel([position, title, detail].filter { !$0.isEmpty }.joined(separator: ", "))
+        let leading: NSView
+        if image != nil && position.isEmpty {
+            leading = thumbnailView
+        } else if position.isEmpty {
+            let icon = NSImageView(image: ClipIcon.text.image())
+            icon.contentTintColor = CliprillAppearance.secondary; leading = icon
+        } else {
+            let number = bodyLabel(position, size: 12, secondary: true)
+            number.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+            number.alignment = .center; leading = number
+        }
+        leading.translatesAutoresizingMaskIntoConstraints = false; addSubview(leading)
+        if image != nil {
+            thumbnailView.imageScaling = .scaleProportionallyUpOrDown
+            thumbnailView.wantsLayer = true; thumbnailView.layer?.cornerRadius = 5
+            thumbnailView.layer?.cornerCurve = .continuous; thumbnailView.layer?.masksToBounds = true
+            thumbnailView.setAccessibilityLabel(L("image"))
+            thumbnailView.translatesAutoresizingMaskIntoConstraints = false
+            thumbnailView.heightAnchor.constraint(equalToConstant: 36).isActive = true
+            if !position.isEmpty {
+                addSubview(thumbnailView)
+                NSLayoutConstraint.activate([thumbnailView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 36), thumbnailView.centerYAnchor.constraint(equalTo: centerYAnchor), thumbnailView.widthAnchor.constraint(equalToConstant: 36)])
+            }
+        }
+        NSLayoutConstraint.activate([
+            leading.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            leading.widthAnchor.constraint(equalToConstant: image != nil && position.isEmpty ? 36 : 20), leading.centerYAnchor.constraint(equalTo: centerYAnchor),
+            primary.leadingAnchor.constraint(equalTo: leadingAnchor, constant: image == nil ? 40 : (position.isEmpty ? 58 : 84)),
+            primary.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            primary.trailingAnchor.constraint(equalTo: trailingAnchor, constant: next ? -64 : (add == nil ? -12 : -40)),
+            secondary.leadingAnchor.constraint(equalTo: primary.leadingAnchor),
+            secondary.topAnchor.constraint(equalTo: primary.bottomAnchor, constant: 3),
+            secondary.trailingAnchor.constraint(equalTo: primary.trailingAnchor)
+        ])
+        if next {
+            let badge = bodyLabel(L("next"), size: 11, secondary: true)
+            badge.font = CliprillAppearance.font(11, weight: .medium)
+            badge.translatesAutoresizingMaskIntoConstraints = false; addSubview(badge)
+            NSLayoutConstraint.activate([badge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10), badge.centerYAnchor.constraint(equalTo: centerYAnchor)])
+        }
+        if let add {
+            let button = ActionButton(icon: .plus, help: L("add.queue"), handler: add)
+            addSubview(button); trailing = button
+            NSLayoutConstraint.activate([button.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5), button.centerYAnchor.constraint(equalTo: centerYAnchor)])
+        }
+        toolTip = [title, detail].joined(separator: "\n")
+        setAccessibilityLabel([position, title, next ? L("next") : "", detail].filter { !$0.isEmpty }.joined(separator: ", "))
     }
     required init?(coder: NSCoder) { fatalError() }
 }
@@ -63,26 +114,24 @@ private final class ClipCell: NSTableCellView {
 final class PanelController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSWindowDelegate {
     unowned let appDelegate: AppDelegate
     private let search = NSSearchField()
-    private let tabs = NSSegmentedControl(labels: [L("history"), L("queue")], trackingMode: .selectOne, target: nil, action: nil)
     private let selector = NSPopUpButton()
-    private var selectorRow: NSStackView!
-    private var queueMenuButton: ActionButton!
-    private let table = NSTableView()
+    private let table = ClipTable()
     private let scroll = NSScrollView()
-    private let stateLabel = NSTextField(labelWithString: "")
-    private let emptyTitle = NSTextField(labelWithString: "")
+    private let stateLabel = NSTextField(wrappingLabelWithString: "")
+    private let emptyTitle = bodyLabel("", size: 14)
     private let emptyDetail = NSTextField(wrappingLabelWithString: "")
-    private let toggle = NSButton()
-    private let count = NSTextField(labelWithString: "")
-    private var up: ActionButton!
-    private var down: ActionButton!
-    private var remove: ActionButton!
-    private var undo: ActionButton!
-    private var append: ActionButton!
+    private var historyTab: ActionButton!
+    private var queueTab: ActionButton!
+    private var more: ActionButton!
+    private var toggle: ActionButton!
+    private var emptyAction: ActionButton!
     private var preview: NSPopover?
+    private var previewTask: Task<Void, Never>?
+    private let thumbnails = NSCache<NSString, NSImage>()
     private var editor: ImportController?
     private var monitor: Any?
     private var globalMonitor: Any?
+    private var modeTask: Task<Void, Never>?
     private var messageUntil = Date.distantPast
     private var queues: [ClipQueue] = []
     private var history: [HistoryItem] = []
@@ -90,32 +139,65 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     private var historyRows: [HistoryItem] = []
     var selectedQueueID: String?
     private var currentQueue: ClipQueue? { queues.first { $0.id == selectedQueueID } }
-    private var inQueue: Bool { tabs.selectedSegment == 1 }
+    private var inQueue = false
 
     init(appDelegate: AppDelegate) {
         self.appDelegate = appDelegate
-        let panel = ClipPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 552), styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
+        let panel = ClipPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 356), styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.title = "Cliprill"; panel.titleVisibility = .hidden; panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true; panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false; panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear; panel.isOpaque = false; panel.hasShadow = true
         super.init(window: panel); panel.delegate = self
+        thumbnails.countLimit = 128
         build()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.window?.isKeyWindow == true, self.editor == nil else { return event }
-            if (self.search.currentEditor() as? NSTextView)?.hasMarkedText() == true { return event }
-            switch event.keyCode {
-            case 53: if self.preview?.isShown == true { self.preview?.close() } else { self.window?.orderOut(nil) }; return nil
-            case 125: self.select(delta: 1); return nil
-            case 126: self.select(delta: -1); return nil
-            case 36, 76: if event.modifierFlags.contains(.option) { self.enqueueSelected() } else { self.openSelected() }; return nil
-            default: return event
+            if (self.window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
+            if event.keyCode == 53 {
+                if self.preview?.isShown == true { self.preview?.close() }
+                else if !self.search.stringValue.isEmpty { self.clearSearch() }
+                else { self.window?.orderOut(nil) }
+                return nil
             }
+            if flags == .command {
+                switch event.charactersIgnoringModifiers {
+                case "y": self.showPreview(); return nil
+                case ",": self.appDelegate.showSettings(); return nil
+                case "1": self.selectMode(queue: false); return nil
+                case "2": self.selectMode(queue: true); return nil
+                default: break
+                }
+            }
+            let responder = self.window?.firstResponder
+            if responder === self.historyTab || responder === self.queueTab {
+                if flags.isEmpty && [123, 124].contains(event.keyCode) {
+                    self.selectMode(queue: event.keyCode == 124); return nil
+                }
+                return event
+            }
+            let editingSearch = self.search.currentEditor() != nil && responder === self.search.currentEditor()
+            guard responder === self.table || editingSearch else { return event }
+            if flags.isEmpty {
+                switch event.keyCode {
+                case 125: self.select(delta: 1); return nil
+                case 126: self.select(delta: -1); return nil
+                case 36, 76: self.openSelected(); return nil
+                case 49 where responder === self.table: self.showPreview(); return nil
+                default: break
+                }
+            } else if flags == .option && [36, 76].contains(event.keyCode) {
+                self.enqueueSelected(); return nil
+            }
+            return event
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self, self.editor == nil, self.preview?.isShown != true else { return }
-            self.window?.orderOut(nil)
+            // Release the nonactivating panel's key status so the destination receives Cmd-V.
+            self.window?.resignKey()
+            if !self.inQueue { self.window?.orderOut(nil) }
         }
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -123,77 +205,90 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
 
     private func build() {
         guard let window else { return }
-        let root = NSVisualEffectView(); root.material = .popover; root.blendingMode = .behindWindow; root.state = .active
-        root.wantsLayer = true; root.layer?.cornerRadius = 12; root.layer?.masksToBounds = true
-        window.contentView = root
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
+        let root = PanelSurfaceView(); window.contentView = root
+        let drag = PanelDragHandle(); drag.toolTip = L("drag.panel")
+        drag.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(drag)
+        NSLayoutConstraint.activate([drag.leadingAnchor.constraint(equalTo: root.leadingAnchor), drag.trailingAnchor.constraint(equalTo: root.trailingAnchor), drag.topAnchor.constraint(equalTo: root.topAnchor), drag.heightAnchor.constraint(equalToConstant: 14)])
+        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(stack)
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14), stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14), stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 12), stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10)])
-        let mark = NSImageView(image: NSImage(systemSymbolName: "list.clipboard", accessibilityDescription: nil)!)
-        mark.contentTintColor = .systemTeal
-        let name = NSTextField(labelWithString: "Cliprill"); name.font = .systemFont(ofSize: 13, weight: .semibold)
-        let add = ActionButton(symbol: "plus", help: L("new.queue")) { [weak self] in self?.showImport(append: false) }
-        let settings = ActionButton(symbol: "slider.horizontal.3", help: L("settings")) { [weak self] in self?.appDelegate.showSettings() }
-        let close = ActionButton(symbol: "xmark", help: L("close")) { [weak self] in self?.window?.orderOut(nil) }
-        let title = row([mark, name, NSView(), add, settings, close]); title.spacing = 6
-        stack.addArrangedSubview(title)
-        search.placeholderString = L("search.placeholder"); search.font = .systemFont(ofSize: 13)
-        search.delegate = self; search.sendsSearchStringImmediately = true; search.focusRingType = .none
-        search.heightAnchor.constraint(equalToConstant: 30).isActive = true
-        stack.addArrangedSubview(search)
-        tabs.selectedSegment = 0; tabs.segmentStyle = .separated; tabs.target = self; tabs.action = #selector(tabChanged)
-        tabs.setWidth(100, forSegment: 0); tabs.setWidth(100, forSegment: 1)
-        count.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular); count.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(row([tabs, NSView(), count]))
-        selector.bezelStyle = .accessoryBar; selector.controlSize = .small
-        selector.target = self; selector.action = #selector(queueChanged); selector.setAccessibilityLabel(L("choose.queue"))
-        queueMenuButton = ActionButton(symbol: "ellipsis", help: L("queue.actions")) { [weak self] in self?.showQueueMenu() }
-        selectorRow = row([selector, queueMenuButton]); selectorRow.spacing = 4
-        stack.addArrangedSubview(selectorRow)
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14), stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14), stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16), stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)])
+
+        let searchSurface = SurfaceView(radius: 10); searchSurface.surfaceColor = CliprillAppearance.input
+        search.placeholderString = L("search.placeholder"); search.font = CliprillAppearance.font(14)
+        search.delegate = self; search.sendsSearchStringImmediately = true
+        search.isBordered = false; search.isBezeled = false; search.drawsBackground = false
+        search.focusRingType = .exterior; search.setAccessibilityLabel(L("search.placeholder"))
+        if let cell = search.cell as? NSSearchFieldCell {
+            cell.searchButtonCell?.image = ClipIcon.search.image()
+            cell.cancelButtonCell?.image = ClipIcon.close.image()
+        }
+        search.translatesAutoresizingMaskIntoConstraints = false; searchSurface.addSubview(search)
+        NSLayoutConstraint.activate([search.leadingAnchor.constraint(equalTo: searchSurface.leadingAnchor, constant: 8), search.trailingAnchor.constraint(equalTo: searchSurface.trailingAnchor, constant: -6), search.centerYAnchor.constraint(equalTo: searchSurface.centerYAnchor), search.heightAnchor.constraint(equalToConstant: 24), searchSurface.heightAnchor.constraint(equalToConstant: 38)])
+        more = ActionButton(icon: .more, help: L("actions")) { [weak self] in self?.showActions() }
+        let searchRow = horizontalRow([searchSurface, more]); searchSurface.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stack.addArrangedSubview(searchRow)
+
+        historyTab = ActionButton(title: L("history")) { [weak self] in self?.selectMode(queue: false) }
+        queueTab = ActionButton(title: L("queue")) { [weak self] in self?.selectMode(queue: true) }
+        selector.isBordered = false; selector.font = CliprillAppearance.font(12); selector.contentTintColor = CliprillAppearance.secondary
+        selector.lineBreakMode = .byTruncatingTail; selector.target = self; selector.action = #selector(queueChanged)
+        selector.setAccessibilityLabel(L("choose.queue"))
+        selector.widthAnchor.constraint(lessThanOrEqualToConstant: 168).isActive = true
+        selector.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        stack.addArrangedSubview(horizontalRow([historyTab, queueTab, NSView(), selector], spacing: 4))
+
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("clip")); column.resizingMask = .autoresizingMask
-        table.addTableColumn(column); table.headerView = nil; table.rowHeight = 48; table.intercellSpacing = .zero
+        table.addTableColumn(column); table.headerView = nil; table.rowHeight = CliprillAppearance.rowHeight; table.intercellSpacing = .zero
         table.backgroundColor = .clear; table.style = .plain; table.selectionHighlightStyle = .regular
         table.dataSource = self; table.delegate = self; table.target = self; table.doubleAction = #selector(openSelected)
         table.allowsEmptySelection = true; table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         table.setAccessibilityLabel(L("clipboard.items"))
+        table.contextMenu = { [weak self] in self?.makeActionsMenu() ?? NSMenu() }
         scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
-        scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 110).isActive = true
-        let listContainer = NSView(); listContainer.translatesAutoresizingMaskIntoConstraints = false
-        scroll.translatesAutoresizingMaskIntoConstraints = false; listContainer.addSubview(scroll)
-        NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo: listContainer.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: listContainer.trailingAnchor), scroll.topAnchor.constraint(equalTo: listContainer.topAnchor), scroll.bottomAnchor.constraint(equalTo: listContainer.bottomAnchor)])
-        emptyTitle.font = .systemFont(ofSize: 14, weight: .medium); emptyDetail.font = .systemFont(ofSize: 12); emptyDetail.textColor = .secondaryLabelColor
-        let empty = NSStackView(views: [emptyTitle, emptyDetail]); empty.orientation = .vertical; empty.alignment = .centerX; empty.spacing = 6; empty.translatesAutoresizingMaskIntoConstraints = false
-        emptyDetail.alignment = .center; listContainer.addSubview(empty)
-        NSLayoutConstraint.activate([empty.centerXAnchor.constraint(equalTo: listContainer.centerXAnchor), empty.centerYAnchor.constraint(equalTo: listContainer.centerYAnchor, constant: -20), empty.widthAnchor.constraint(lessThanOrEqualToConstant: 280)])
-        stack.addArrangedSubview(listContainer)
-        let separator = NSBox(); separator.boxType = .separator; stack.addArrangedSubview(separator)
-        up = ActionButton(symbol: "arrow.up", help: L("move.up")) { [weak self] in self?.move(-1) }
-        down = ActionButton(symbol: "arrow.down", help: L("move.down")) { [weak self] in self?.move(1) }
-        remove = ActionButton(symbol: "trash", help: L("remove")) { [weak self] in self?.removeSelected() }
-        undo = ActionButton(symbol: "arrow.uturn.backward", help: L("undo.dequeue")) { [weak self] in self?.queueAction("queue_undo_last") }
-        append = ActionButton(symbol: "text.badge.plus", help: L("append.text")) { [weak self] in self?.showImport(append: true) }
-        let inspect = ActionButton(symbol: "sidebar.right", help: L("preview")) { [weak self] in self?.showPreview() }
-        toggle.title = L("start"); toggle.bezelStyle = .rounded; toggle.controlSize = .small; toggle.target = self; toggle.action = #selector(toggleQueue)
-        let actions = row([up, down, remove, undo, append, inspect, NSView(), toggle]); actions.spacing = 3; stack.addArrangedSubview(actions)
-        stateLabel.font = .systemFont(ofSize: 11); stateLabel.textColor = .secondaryLabelColor; stateLabel.lineBreakMode = .byTruncatingTail
-        stateLabel.heightAnchor.constraint(equalToConstant: 16).isActive = true; stack.addArrangedSubview(stateLabel)
-        for child in stack.arrangedSubviews { child.translatesAutoresizingMaskIntoConstraints = false; child.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        scroll.scrollerStyle = .overlay
+        let list = NSView(); scroll.translatesAutoresizingMaskIntoConstraints = false; list.addSubview(scroll)
+        NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo: list.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: list.trailingAnchor), scroll.topAnchor.constraint(equalTo: list.topAnchor), scroll.bottomAnchor.constraint(equalTo: list.bottomAnchor), list.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)])
+        emptyTitle.font = CliprillAppearance.font(14, weight: .medium)
+        emptyDetail.font = CliprillAppearance.font(12); emptyDetail.textColor = CliprillAppearance.secondary; emptyDetail.alignment = .center
+        emptyAction = ActionButton(title: L("new.queue"), icon: .plus) { [weak self] in self?.showImport(append: false) }
+        let empty = NSStackView(views: [emptyTitle, emptyDetail, emptyAction]); empty.orientation = .vertical; empty.alignment = .centerX; empty.spacing = 8
+        empty.translatesAutoresizingMaskIntoConstraints = false; list.addSubview(empty)
+        NSLayoutConstraint.activate([empty.centerXAnchor.constraint(equalTo: list.centerXAnchor), empty.centerYAnchor.constraint(equalTo: list.centerYAnchor), empty.widthAnchor.constraint(lessThanOrEqualToConstant: 280)])
+        stack.addArrangedSubview(list)
+        stack.addArrangedSubview(HairlineView())
+        stateLabel.font = CliprillAppearance.font(12); stateLabel.textColor = CliprillAppearance.secondary
+        stateLabel.maximumNumberOfLines = 2; stateLabel.lineBreakMode = .byTruncatingTail
+        stateLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        toggle = ActionButton(title: L("start")) { [weak self] in self?.footerAction() }
+        let footer = horizontalRow([stateLabel, NSView(), toggle]); footer.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        stack.addArrangedSubview(footer)
+        for child in stack.arrangedSubviews {
+            child.translatesAutoresizingMaskIntoConstraints = false; child.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        reloadRows()
     }
-    private func row(_ views: [NSView]) -> NSStackView {
-        let row = NSStackView(views: views); row.orientation = .horizontal; row.alignment = .centerY; row.spacing = 8
-        return row
+    private var desiredHeight: CGFloat {
+        // Header, footer and gaps occupy 159 pt; allow whole 52 pt rows below them.
+        min(552, max(300, 160 + CliprillAppearance.rowHeight * CGFloat(inQueue ? queueRows.count : historyRows.count)))
     }
     func showNearPointer() {
-        guard let window else { return }
-        let pointer = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main!
-        let visible = screen.visibleFrame.insetBy(dx: 8, dy: 8)
-        let size = NSSize(width: min(420, visible.width), height: min(552, visible.height))
-        // The first row, rather than the window edge, is placed close to the pointer.
+        guard let window, let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else { return }
+        let pointer = NSEvent.mouseLocation, visible = screen.visibleFrame.insetBy(dx: 8, dy: 8)
+        let size = NSSize(width: min(CliprillAppearance.panelWidth, visible.width), height: min(desiredHeight, visible.height))
         let x = min(max(pointer.x - 44, visible.minX), visible.maxX - size.width)
-        let y = min(max(pointer.y - size.height + 152, visible.minY), visible.maxY - size.height)
+        let y = min(max(pointer.y - size.height + 116, visible.minY), visible.maxY - size.height)
         window.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: size), display: false)
-        window.makeKeyAndOrderFront(nil); window.makeFirstResponder(search)
+        reveal()
+    }
+    private func reveal() { window?.makeKeyAndOrderFront(nil); window?.makeFirstResponder(search) }
+    private func resizeForContents() {
+        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        let visible = screen.visibleFrame.insetBy(dx: 8, dy: 8)
+        var frame = window.frame
+        let height = min(desiredHeight, visible.height)
+        frame.origin.y = min(max(frame.maxY - height, visible.minY), visible.maxY - height)
+        frame.size.height = height
+        window.setFrame(frame, display: window.isVisible)
     }
     func reload(_ value: CoreState) {
         queues = value.queues; history = value.history
@@ -201,90 +296,170 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         selector.removeAllItems()
         if queues.isEmpty { selector.addItem(withTitle: L("no.queue")) }
         else {
-            for q in queues { selector.addItem(withTitle: "\(q.title)  ·  \(q.remaining)"); selector.lastItem?.representedObject = q.id }
+            for q in queues { selector.addItem(withTitle: q.title); selector.lastItem?.representedObject = q.id }
             if let i = queues.firstIndex(where: { $0.id == selectedQueueID }) { selector.selectItem(at: i) }
         }
         reloadRows()
     }
     private func reloadRows() {
-        let selectedID: String? = inQueue ? queueRows[safe: table.selectedRow]?.id : historyRows[safe: table.selectedRow]?.id
+        let selectedID = inQueue ? queueRows[safe: table.selectedRow]?.id : historyRows[safe: table.selectedRow]?.id
         let query = search.stringValue
-        historyRows = history.filter { query.isEmpty || $0.text.localizedCaseInsensitiveContains(query) }
-        queueRows = Array((currentQueue?.items ?? []).dropFirst(currentQueue?.cursor ?? 0)).filter { query.isEmpty || $0.text.localizedCaseInsensitiveContains(query) || $0.label.localizedCaseInsensitiveContains(query) }
+        historyRows = history.filter { matches(text: $0.text, image: $0.image, query: query) || $0.source.localizedCaseInsensitiveContains(query) }
+        queueRows = Array((currentQueue?.items ?? []).dropFirst(currentQueue?.cursor ?? 0)).filter {
+            matches(text: $0.text, image: $0.image, query: query) || $0.label.localizedCaseInsensitiveContains(query)
+        }
         table.reloadData()
         let rowCount = inQueue ? queueRows.count : historyRows.count
         let selected = inQueue ? queueRows.firstIndex(where: { $0.id == selectedID }) : historyRows.firstIndex(where: { $0.id == selectedID })
         if rowCount > 0 { table.selectRowIndexes(IndexSet(integer: selected ?? 0), byExtendingSelection: false) }
         emptyTitle.isHidden = rowCount != 0; emptyDetail.isHidden = rowCount != 0
-        if !query.isEmpty { emptyTitle.stringValue = L("no.matches"); emptyDetail.stringValue = "" }
+        emptyAction.isHidden = rowCount != 0 || !inQueue || !query.isEmpty
+        if !query.isEmpty { emptyTitle.stringValue = L("no.matches"); emptyDetail.stringValue = L("search.clear.hint") }
         else if inQueue {
             emptyTitle.stringValue = currentQueue?.status == .completed ? L("queue.complete") : L("queue.empty")
             emptyDetail.stringValue = L("queue.empty.detail")
         } else { emptyTitle.stringValue = L("history.empty"); emptyDetail.stringValue = L("history.empty.detail") }
-        selectorRow.isHidden = !inQueue; selector.isEnabled = !queues.isEmpty; queueMenuButton.isEnabled = !queues.isEmpty
-        count.stringValue = inQueue ? "\(currentQueue?.remaining ?? 0) / \(currentQueue?.items.count ?? 0)" : "\(historyRows.count)"
-        toggle.isHidden = !inQueue; toggle.title = currentQueue?.status == .active ? L("pause") : L("start")
-        toggle.isEnabled = (currentQueue?.remaining ?? 0) > 0
-        for button in [up, down, undo, append] { button?.isHidden = !inQueue }
-        updateActions()
+        selector.isHidden = !inQueue; selector.isEnabled = !queues.isEmpty
+        selector.toolTip = currentQueue?.title
+        historyTab.state = inQueue ? .off : .on; queueTab.state = inQueue ? .on : .off
+        queueTab.title = L("queue") + "  \(currentQueue?.remaining ?? 0)"
         if Date() >= messageUntil { updateStatus() }
+        updateFooter()
+    }
+    private func updateFooter() {
+        let q = currentQueue
+        if !inQueue { toggle.title = L("actions"); toggle.image = nil; toggle.style = .plain }
+        else if !appDelegate.coordinator.hasPermission && (q?.remaining ?? 0) > 0 {
+            toggle.title = L("permission.enable"); toggle.image = nil; toggle.style = .prominent
+        } else if q?.status == .active {
+            toggle.title = L("pause"); toggle.image = ClipIcon.pause.image(); toggle.style = .plain
+        } else if (q?.remaining ?? 0) > 0 {
+            toggle.title = L("start"); toggle.image = ClipIcon.play.image(); toggle.style = .prominent
+        } else if (q?.cursor ?? 0) > 0 {
+            toggle.title = L("undo.dequeue.short"); toggle.image = ClipIcon.undo.image(); toggle.style = .plain
+        } else { toggle.title = L("new.queue"); toggle.image = ClipIcon.plus.image(); toggle.style = .plain }
+        toggle.imagePosition = toggle.image == nil ? .noImage : .imageLeading
+        toggle.setAccessibilityLabel(toggle.title); toggle.toolTip = toggle.title
+        toggle.invalidateIntrinsicContentSize()
     }
     private func updateStatus() {
-        stateLabel.textColor = .secondaryLabelColor
+        stateLabel.textColor = CliprillAppearance.secondary
         if inQueue, let q = currentQueue {
-            if q.status == .active { stateLabel.stringValue = L("status.active"); stateLabel.textColor = .systemTeal }
+            let remaining = String(format: L("remaining.format"), q.remaining)
+            if q.status == .active { stateLabel.stringValue = L("status.active") + " · " + remaining }
             else if q.pauseReason == "external_copy" { stateLabel.stringValue = L("copied.paused") }
-            else if q.pauseReason == "app_restarted" { stateLabel.stringValue = L("status.recovered") }
+            else if q.pauseReason == "app_restarted" { stateLabel.stringValue = L("status.recovered") + " · " + remaining }
             else if q.status == .completed { stateLabel.stringValue = L("status.complete") }
-            else { stateLabel.stringValue = appDelegate.coordinator.hasPermission ? L("status.paused") : L("permission.required") }
-        } else { stateLabel.stringValue = L("status.history") }
+            else { stateLabel.stringValue = appDelegate.coordinator.hasPermission ? L("status.paused") + " · " + remaining : L("permission.required") }
+        } else { stateLabel.stringValue = inQueue ? L("queue.empty.detail") : L("status.history") }
         stateLabel.toolTip = stateLabel.stringValue
     }
     func showMessage(_ text: String) {
         messageUntil = Date().addingTimeInterval(4)
-        stateLabel.stringValue = text; stateLabel.toolTip = text; stateLabel.textColor = .secondaryLabelColor
+        stateLabel.stringValue = text; stateLabel.toolTip = text
         Task { try? await Task.sleep(nanoseconds: 4_100_000_000); if Date() >= messageUntil { updateStatus() } }
     }
-    func controlTextDidChange(_ obj: Notification) { reloadRows() }
-    @objc private func tabChanged() { search.stringValue = ""; reloadRows(); window?.makeFirstResponder(search) }
-    @objc private func queueChanged() { selectedQueueID = selector.selectedItem?.representedObject as? String; reloadRows() }
+    func controlTextDidChange(_ obj: Notification) { reloadRows(); if search.stringValue.isEmpty { resizeForContents() } }
+    private func clearSearch() { search.stringValue = ""; reloadRows(); resizeForContents(); window?.makeFirstResponder(search) }
+    private func selectMode(queue: Bool) {
+        guard inQueue != queue else { return }
+        inQueue = queue; clearSearch(); synchronizeQueueMode()
+    }
+    @objc private func queueChanged() {
+        selectedQueueID = selector.selectedItem?.representedObject as? String
+        clearSearch(); synchronizeQueueMode()
+    }
+    // Refreshes never restart manually paused or safety-paused queues.
+    private func synchronizeQueueMode() {
+        modeTask?.cancel()
+        modeTask = Task {
+            await appDelegate.coordinator.pause(reason: "view_changed")
+            guard !Task.isCancelled, inQueue, let q = currentQueue, q.remaining > 0 else { return }
+            await activate(q)
+        }
+    }
+    private func activate(_ queue: ClipQueue) async {
+        do {
+            _ = try await appDelegate.perform("queue_activate", ["queue_id": .string(queue.id), "expected_revision": .integer(queue.revision)])
+        } catch {
+            showMessage(error.localizedDescription)
+            if (error as? CoreError)?.code == "accessibility_required" { requestPermission(queueID: queue.id) }
+        }
+    }
+    private func requestPermission(queueID: String? = nil) {
+        appDelegate.showPermissionGuide { [weak self] in
+            guard let self else { return }
+            self.reveal()
+            // Recheck navigation and use the current revision after returning from System Settings.
+            if let queueID, self.inQueue, let q = self.currentQueue, q.id == queueID, q.remaining > 0 {
+                self.modeTask?.cancel()
+                self.modeTask = Task { await self.activate(q) }
+            }
+        }
+    }
     func numberOfRows(in tableView: NSTableView) -> Int { inQueue ? queueRows.count : historyRows.count }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { ClipRowView() }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         if inQueue, let item = queueRows[safe: row], let q = currentQueue {
             let index = q.items.firstIndex { $0.id == item.id } ?? 0
-            let detail = item.label.isEmpty ? "\(item.text.count) \(L("characters"))" : item.label
-            return ClipCell(title: compact(item.text), detail: index == q.cursor ? L("next") + "  ·  " + detail : detail, position: String(index + 1), next: index == q.cursor, add: nil)
+            let detail = item.image.map(imageDetail) ?? "\(item.text.count) \(L("characters"))"
+            let cell = ClipCell(title: item.image == nil ? compact(item.text) : (item.label.isEmpty ? L("image") : item.label),
+                                detail: item.label.isEmpty || item.image != nil ? detail : item.label,
+                                position: String(index + 1), next: index == q.cursor, image: item.image, add: nil)
+            loadThumbnail(item.image, into: cell)
+            return cell
         }
         guard let item = historyRows[safe: row] else { return nil }
         let date = RelativeDateTimeFormatter().localizedString(for: item.copiedAt, relativeTo: Date())
-        return ClipCell(title: compact(item.text), detail: [item.source, date].filter { !$0.isEmpty }.joined(separator: "  ·  "), position: "", next: false) { [weak self] in self?.enqueue(item.text) }
+        let detail = [item.image.map(imageDetail) ?? "", item.source, date].filter { !$0.isEmpty }.joined(separator: " · ")
+        let cell = ClipCell(title: item.image == nil ? compact(item.text) : L("image"), detail: detail,
+                            position: "", next: false, image: item.image) { [weak self] in self?.enqueue(item) }
+        loadThumbnail(item.image, into: cell)
+        return cell
+    }
+    private func imageDetail(_ image: ClipboardImage) -> String {
+        "\(image.width) × \(image.height) · " + ByteCountFormatter.string(fromByteCount: Int64(image.byteCount), countStyle: .file)
+    }
+    private func matches(text: String, image: ClipboardImage?, query: String) -> Bool {
+        if query.isEmpty || text.localizedCaseInsensitiveContains(query) { return true }
+        guard let image else { return false }
+        return [L("image"), "image", "图片", "\(image.width) × \(image.height)"].contains { $0.localizedCaseInsensitiveContains(query) }
+    }
+    private func loadThumbnail(_ image: ClipboardImage?, into cell: ClipCell) {
+        guard let image else { return }
+        if let cached = thumbnails.object(forKey: image.id as NSString) { cell.setThumbnail(cached); return }
+        Task { [weak cell] in
+            guard let data = try? await appDelegate.core.imageData(image, thumbnail: true), let thumbnail = NSImage(data: data) else { return }
+            thumbnails.setObject(thumbnail, forKey: image.id as NSString)
+            cell?.setThumbnail(thumbnail)
+        }
     }
     private func compact(_ text: String) -> String { text.replacingOccurrences(of: "\r\n", with: " ↵ ").replacingOccurrences(of: "\n", with: " ↵ ").replacingOccurrences(of: "\t", with: "  ") }
-    func tableViewSelectionDidChange(_ notification: Notification) { updateActions() }
-    private func updateActions() {
-        let index = table.selectedRow
-        up?.isEnabled = inQueue && index > 0 && search.stringValue.isEmpty
-        down?.isEnabled = inQueue && index >= 0 && index + 1 < queueRows.count && search.stringValue.isEmpty
-        remove?.isEnabled = index >= 0
-        undo?.isEnabled = (currentQueue?.cursor ?? 0) > 0
-        append?.isEnabled = currentQueue != nil
-    }
     private func select(delta: Int) {
         let count = table.numberOfRows; guard count > 0 else { return }
         let next = min(max(0, table.selectedRow + delta), count - 1)
         table.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false); table.scrollRowToVisible(next)
     }
-    @objc private func toggleQueue() { queueAction(currentQueue?.status == .active ? "queue_pause" : "queue_activate") }
+    private func footerAction() {
+        if !inQueue { showActions(anchor: toggle) }
+        else if (currentQueue?.remaining ?? 0) == 0 {
+            if (currentQueue?.cursor ?? 0) > 0 { queueAction("queue_undo_last") }
+            else { showImport(append: false) }
+        } else if !appDelegate.coordinator.hasPermission { requestPermission(queueID: currentQueue?.id) }
+        else { queueAction(currentQueue?.status == .active ? "queue_pause" : "queue_activate") }
+    }
     private func queueAction(_ method: String) {
         guard let q = currentQueue else { return }
-        run {
-            _ = try await self.appDelegate.perform(method, ["queue_id": .string(q.id), "expected_revision": .integer(q.revision)])
-            if method == "queue_activate" { self.window?.orderOut(nil) }
+        if method == "queue_activate" {
+            modeTask?.cancel(); modeTask = Task { await activate(q) }; return
         }
+        run { _ = try await self.appDelegate.perform(method, ["queue_id": .string(q.id), "expected_revision": .integer(q.revision)]) }
     }
     private func run(_ body: @escaping () async throws -> Void) {
-        Task { do { try await body() } catch { showMessage(error.localizedDescription); if (error as? CoreError)?.code == "accessibility_required" { appDelegate.showSettings() } } }
+        Task { do { try await body() } catch {
+            showMessage(error.localizedDescription)
+            if (error as? CoreError)?.code == "accessibility_required" { requestPermission() }
+        } }
     }
     @objc private func openSelected() {
         if inQueue { showPreview(); return }
@@ -292,14 +467,55 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         run {
             try self.appDelegate.coordinator.ensureTap()
             self.window?.orderOut(nil)
-            try await self.appDelegate.coordinator.pasteHistory(item.text, target: self.appDelegate.target)
+            try await self.appDelegate.coordinator.pasteHistory(item, target: self.appDelegate.target)
         }
     }
-    private func enqueueSelected() { if let item = historyRows[safe: table.selectedRow], !inQueue { enqueue(item.text) } }
-    private func enqueue(_ text: String) {
+    private func enqueueSelected() { if let item = historyRows[safe: table.selectedRow], !inQueue { enqueue(item) } }
+    private func showActions(anchor: NSView? = nil) {
+        let source = anchor ?? more!
+        makeActionsMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: source.bounds.minY), in: source)
+    }
+    private func makeActionsMenu() -> NSMenu {
+        let menu = NSMenu(); menu.autoenablesItems = false
+        func add(_ key: String, _ command: String, _ icon: ClipIcon, enabled: Bool = true, shortcut: String = "") {
+            let item = menu.addItem(withTitle: L(key), action: #selector(menuAction(_:)), keyEquivalent: shortcut)
+            item.target = self; item.representedObject = command; item.image = icon.image(); item.isEnabled = enabled
+        }
+        add("new.queue", "new", .plus)
+        if inQueue { add("append.text", "append", .text, enabled: currentQueue != nil) }
+        menu.addItem(.separator())
+        add("preview", "preview", .preview, enabled: table.selectedRow >= 0, shortcut: "y")
+        if !inQueue { add("add.queue", "enqueue", .plus, enabled: table.selectedRow >= 0) }
+        else {
+            add("move.up", "up", .up, enabled: table.selectedRow > 0 && search.stringValue.isEmpty)
+            add("move.down", "down", .down, enabled: table.selectedRow >= 0 && table.selectedRow + 1 < queueRows.count && search.stringValue.isEmpty)
+            add("undo.dequeue", "undo", .undo, enabled: (currentQueue?.cursor ?? 0) > 0)
+        }
+        add("remove", "remove", .trash, enabled: table.selectedRow >= 0)
+        if inQueue { add("delete.queue", "delete", .trash, enabled: currentQueue != nil) }
+        menu.addItem(.separator())
+        add("settings", "settings", .settings, shortcut: ",")
+        return menu
+    }
+    @objc private func menuAction(_ sender: NSMenuItem) {
+        switch sender.representedObject as? String {
+        case "new": showImport(append: false)
+        case "append": showImport(append: true)
+        case "preview": showPreview()
+        case "enqueue": enqueueSelected()
+        case "up": move(-1)
+        case "down": move(1)
+        case "remove": removeSelected()
+        case "undo": queueAction("queue_undo_last")
+        case "delete": deleteQueue()
+        case "settings": appDelegate.showSettings()
+        default: break
+        }
+    }
+    private func enqueue(_ item: HistoryItem) {
         let q = currentQueue
         run {
-            var args: [String: JSONValue] = ["items": .array([.object(["text": .string(text)])])]
+            var args: [String: JSONValue] = ["items": .array([.object(["history_id": .string(item.id)])])]
             if let q { args["queue_id"] = .string(q.id) } else { args["title"] = .string(L("queue.untitled")) }
             let result = try await self.appDelegate.perform(q == nil ? "queue_create" : "queue_append", args)
             self.selectedQueueID = result["queue_id"].string
@@ -320,14 +536,38 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         }
     }
     private func showPreview() {
-        let text = inQueue ? queueRows[safe: table.selectedRow]?.text : historyRows[safe: table.selectedRow]?.text
+        let row = table.selectedRow
+        let text = inQueue ? queueRows[safe: row]?.text : historyRows[safe: row]?.text
+        let image = inQueue ? queueRows[safe: row]?.image : historyRows[safe: row]?.image
         guard let text else { return }
-        let vc = NSViewController(); let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 440, height: 320)); scroll.hasVerticalScroller = true
-        let view = NSTextView(frame: scroll.bounds); view.string = text; view.isEditable = false; view.isSelectable = true; view.font = .systemFont(ofSize: 13); view.textContainerInset = NSSize(width: 14, height: 14)
-        view.autoresizingMask = [.width]; view.textContainer?.widthTracksTextView = true; view.isVerticallyResizable = true
-        scroll.documentView = view; vc.view = scroll
-        let popover = NSPopover(); popover.contentViewController = vc; popover.behavior = .semitransient; popover.contentSize = scroll.frame.size
-        preview?.close(); preview = popover; popover.show(relativeTo: table.rect(ofRow: table.selectedRow), of: table, preferredEdge: .maxX)
+        previewTask?.cancel(); preview?.close()
+        let vc = NSViewController()
+        let size = NSSize(width: image == nil ? 440 : 560, height: image == nil ? 320 : 400)
+        if let image {
+            let root = SurfaceView(); root.frame = NSRect(origin: .zero, size: size)
+            let view = NSImageView(); view.imageScaling = .scaleProportionallyUpOrDown
+            view.setAccessibilityLabel(L("image") + " · " + imageDetail(image))
+            let caption = bodyLabel(imageDetail(image), size: 12, secondary: true)
+            for child in [view, caption] { child.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(child) }
+            NSLayoutConstraint.activate([view.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16), view.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16), view.topAnchor.constraint(equalTo: root.topAnchor, constant: 16), view.bottomAnchor.constraint(equalTo: caption.topAnchor, constant: -12), caption.centerXAnchor.constraint(equalTo: root.centerXAnchor), caption.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14)])
+            vc.view = root
+            previewTask = Task { [weak view] in
+                do {
+                    let data = try await appDelegate.core.imageData(image)
+                    guard !Task.isCancelled else { return }
+                    view?.image = NSImage(data: data)
+                } catch { if !Task.isCancelled { showMessage(error.localizedDescription) } }
+            }
+        } else {
+            let scroll = NSScrollView(frame: NSRect(origin: .zero, size: size)); scroll.hasVerticalScroller = true
+            let view = NSTextView(frame: scroll.bounds); view.string = text; view.isEditable = false; view.isSelectable = true
+            view.font = CliprillAppearance.font(14); view.backgroundColor = CliprillAppearance.windowBackground
+            view.textColor = CliprillAppearance.ink; view.textContainerInset = NSSize(width: 14, height: 14)
+            view.autoresizingMask = [.width]; view.textContainer?.widthTracksTextView = true; view.isVerticallyResizable = true
+            scroll.documentView = view; vc.view = scroll
+        }
+        let popover = NSPopover(); popover.contentViewController = vc; popover.behavior = .semitransient; popover.contentSize = size
+        preview = popover; popover.show(relativeTo: table.rect(ofRow: row), of: table, preferredEdge: .maxX)
     }
     private func showImport(append: Bool) {
         guard let window, editor == nil else { return }
@@ -337,16 +577,12 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             var args: [String: JSONValue] = ["items": .array(texts.map { .object(["text": .string($0)]) })]
             if let destination { args["queue_id"] = .string(destination.id) } else { args["title"] = .string(title) }
             let result = try await self.appDelegate.perform(destination == nil ? "queue_create" : "queue_append", args)
-            self.selectedQueueID = result["queue_id"].string; self.tabs.selectedSegment = 1; self.search.stringValue = ""; await self.appDelegate.refresh()
+            self.selectedQueueID = result["queue_id"].string; self.inQueue = true; self.search.stringValue = ""; await self.appDelegate.refresh()
+            self.resizeForContents()
+            self.synchronizeQueueMode()
         }
         editor = controller
         window.beginSheet(controller.window!) { [weak self] _ in self?.editor = nil; self?.window?.makeFirstResponder(self?.search) }
-    }
-    private func showQueueMenu() {
-        let menu = NSMenu()
-        let item = menu.addItem(withTitle: L("delete.queue"), action: #selector(deleteQueue), keyEquivalent: "")
-        item.target = self
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: queueMenuButton.bounds.maxY), in: queueMenuButton)
     }
     @objc private func deleteQueue() {
         guard let q = currentQueue, let window else { return }

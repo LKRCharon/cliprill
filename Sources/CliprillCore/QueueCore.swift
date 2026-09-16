@@ -8,10 +8,12 @@ public actor QueueCore {
     private var reservation: PasteReservation?
     public static let maxTextBytes = 262_144
     public static let maxBatchBytes = 2_000_000
+    public static let maxImageStorageBytes = 256 * 1024 * 1024
 
     public init(directory: URL) throws {
         store = try SQLiteStore(directory: directory)
         state = try store.load()
+        state.schema = 2
         state.activeID = nil
         for index in state.queues.indices where state.queues[index].status == .active {
             state.queues[index].status = .paused
@@ -56,10 +58,14 @@ public actor QueueCore {
             let query = a["query"]?.string ?? ""
             let offset = max(0, min(10_000, a["offset"]?.int ?? 0))
             let limit = max(1, min(100, a["limit"]?.int ?? 30))
-            let found = state.history.filter { query.isEmpty || $0.text.localizedCaseInsensitiveContains(query) }
+            let found = state.history.filter { query.isEmpty || $0.text.localizedCaseInsensitiveContains(query) || $0.source.localizedCaseInsensitiveContains(query) || ($0.image != nil && ["image", "图片"].contains(where: { $0.localizedCaseInsensitiveContains(query) })) }
             var bytes = 0
             let page = Array(found.dropFirst(offset).prefix(limit).prefix { item in bytes += (try? JSONEncoder().encode(item).count) ?? 2_000_001; return bytes <= 2_000_000 })
-            return .object(["items": .array(page.map { .object(["id": .string($0.id), "text": .string($0.text), "source": .string($0.source), "copied_at": .string(ISO8601DateFormatter().string(from: $0.copiedAt))]) }), "total": .integer(found.count), "next_offset": offset + page.count < found.count ? .integer(offset + page.count) : .null])
+            return .object(["items": .array(page.map { item in
+                var value: [String: JSONValue] = ["id": .string(item.id), "kind": .string(item.image == nil ? "text" : "image"), "source": .string(item.source), "copied_at": .string(ISO8601DateFormatter().string(from: item.copiedAt))]
+                if let image = item.image { value["image"] = image.metadata } else { value["text"] = .string(item.text) }
+                return .object(value)
+            }), "total": .integer(found.count), "next_offset": offset + page.count < found.count ? .integer(offset + page.count) : .null])
         default: break
         }
         let writeMethods: Set<String> = ["queue_create", "queue_append", "queue_reorder", "queue_remove", "queue_delete", "queue_activate", "queue_pause", "queue_undo_last", "history_delete", "history_clear"]
@@ -142,6 +148,13 @@ public actor QueueCore {
         guard next.queues.reduce(0, { $0 + $1.items.reduce(0) { $0 + $1.text.utf8.count } }) <= 8_000_000 else {
             throw CoreError("capacity", "Saved queues exceed 8 MB. Delete an old queue first.")
         }
+        var images: [String: Int] = [:]
+        for item in next.queues.flatMap(\.items) {
+            if let image = item.image { images[image.id] = image.byteCount }
+        }
+        guard images.values.reduce(0, +) <= Self.maxImageStorageBytes else {
+            throw CoreError("capacity", "Saved queue images exceed 256 MiB. Delete an old queue first.")
+        }
         try persist(next, key: key, fingerprint: fingerprint, response: response)
         return response
     }
@@ -161,10 +174,22 @@ public actor QueueCore {
             throw CoreError("invalid_arguments", "items must contain between 1 and 1000 entries.")
         }
         let items = try values.map { value -> QueueItem in
-            guard let object = value.object, object.keys.allSatisfy({ $0 == "text" || $0 == "label" }), object["label"] == nil || object["label"]?.string != nil else { throw CoreError("invalid_arguments", "Items accept only text and an optional string label.") }
-            guard let text = value["text"].string, text.utf8.count <= Self.maxTextBytes else { throw CoreError("invalid_arguments", "Every item needs text of at most 256 KiB.") }
+            guard let object = value.object, object.keys.allSatisfy({ ["text", "label", "history_id"].contains($0) }),
+                  object["label"] == nil || object["label"]?.string != nil,
+                  (object["text"] != nil) != (object["history_id"] != nil) else {
+                throw CoreError("invalid_arguments", "Supply either text or history_id, plus an optional string label.")
+            }
             let label = value["label"].string ?? ""
             guard label.utf8.count <= 256 else { throw CoreError("invalid_arguments", "Item label is too long.") }
+            if let historyID = object["history_id"] {
+                guard let id = historyID.string, let item = state.history.first(where: { $0.id == id }) else {
+                    throw CoreError("not_found", "History item no longer exists. Refresh history and try again.")
+                }
+                return QueueItem(text: item.text, label: label, image: item.image)
+            }
+            guard let text = value["text"].string, text.utf8.count <= Self.maxTextBytes else {
+                throw CoreError("invalid_arguments", "Every text item needs at most 256 KiB.")
+            }
             return QueueItem(text: text, label: label)
         }
         guard items.reduce(0, { $0 + $1.text.utf8.count }) <= Self.maxBatchBytes else { throw CoreError("capacity", "One batch can contain at most 2 MB of text.") }
@@ -179,7 +204,9 @@ public actor QueueCore {
             "item_ids": .array(q.items.map { .string($0.id) }),
             "items": .array(q.items.enumerated().map { offset, item in
                 var value: [String: JSONValue] = ["id": .string(item.id), "label": .string(item.label), "position": .integer(offset + 1), "dispatched": .bool(offset < q.cursor)]
-                if content { value["text"] = .string(item.text) }
+                value["kind"] = .string(item.image == nil ? "text" : "image")
+                if let image = item.image { value["image"] = image.metadata }
+                else if content { value["text"] = .string(item.text) }
                 return .object(value)
             })
         ])
@@ -188,10 +215,20 @@ public actor QueueCore {
     public func capture(text: String, source: String, capacity: Int = 500, retentionDays: Int = 30) throws {
         guard !text.isEmpty, text.utf8.count <= Self.maxTextBytes else { return }
         var next = state
-        next.history.removeAll { $0.text == text }
+        next.history.removeAll { $0.image == nil && $0.text == text }
         next.history.insert(HistoryItem(text: text, source: source), at: 0)
         trimHistory(&next, capacity: capacity, retentionDays: retentionDays)
         try store.save(next); state = next
+    }
+    public func capture(image: PreparedClipboardImage, source: String, capacity: Int = 500, retentionDays: Int = 30) throws {
+        var next = state
+        next.history.removeAll { $0.image?.id == image.image.id }
+        next.history.insert(HistoryItem(text: "", source: source, image: image.image), at: 0)
+        trimHistory(&next, capacity: capacity, retentionDays: retentionDays)
+        try store.save(next, image: image); state = next
+    }
+    public func imageData(_ image: ClipboardImage, thumbnail: Bool = false) throws -> Data {
+        try store.imageData(id: image.id, thumbnail: thumbnail)
     }
     public func pruneHistory(capacity: Int, retentionDays: Int) throws {
         var next = state; trimHistory(&next, capacity: capacity, retentionDays: retentionDays)
@@ -200,8 +237,17 @@ public actor QueueCore {
     private func trimHistory(_ next: inout CoreState, capacity: Int, retentionDays: Int) {
         let cutoff = Date().addingTimeInterval(-Double(max(1, retentionDays)) * 86400)
         next.history = Array(next.history.filter { $0.copiedAt >= cutoff }.prefix(max(0, min(2000, capacity))))
-        var bytes = 0
-        next.history = Array(next.history.prefix { item in bytes += item.text.utf8.count; return bytes <= 8_000_000 })
+        var textBytes = 0, imageBytes = 0
+        next.history = next.history.filter { item in
+            if let image = item.image {
+                guard image.byteCount <= Self.maxImageStorageBytes - imageBytes else { return false }
+                imageBytes += image.byteCount
+            } else {
+                guard item.text.utf8.count <= 8_000_000 - textBytes else { return false }
+                textBytes += item.text.utf8.count
+            }
+            return true
+        }
     }
     public func reserveNext() throws -> PasteReservation {
         guard reservation == nil else { throw CoreError("busy", "A paste is already being dispatched.") }

@@ -1,4 +1,4 @@
-# Validation for 0.1.0
+# Validation
 
 Environment: macOS on arm64, Xcode 16.4, Swift 6.1.2. Tests use a separate data
 directory and a QA bundle identifier; no production clipboard history is used as
@@ -6,14 +6,14 @@ a fixture.
 
 ## Automated release checks
 
-GitHub Actions runs the 15 Swift tests, release packaging, strict ad-hoc signature
+GitHub Actions runs the Swift test suite, release packaging, strict ad-hoc signature
 verification and packaged MCP integration tests on native arm64 and x86_64 macOS
 15 runners with Xcode 16.4. The required `CI` check also validates workflow syntax
 and requires the dependency lockfile and notices to remain unchanged by the build.
 Tag releases repeat those checks and publish the artifacts from that tagged run.
 These checks do not simulate a physical paste into a destination application.
 
-## Verified
+## Original 0.1.0 verification
 
 - 15 Swift tests pass. Coverage includes FIFO, duplicate entries, multiline/empty
   text, transaction rollback on invalid append, idempotency retries/conflicts,
@@ -63,3 +63,36 @@ System Settings. Queue creation and MCP reads work without that permission.
 Simulated application keys can bypass a global event tap, so they cannot replace
 physical Command–V testing. Dispatch has no universal acknowledgement from the
 receiving application.
+
+
+## 2026-09-15 compact panel update
+
+- Swift debug build and 15 core tests passed with zero failures.
+- Release packaging and strict/deep ad-hoc signature verification passed.
+- The packaged MCP smoke test passed: 11 tools, isolated no-capture data, no
+  visible panel, restart recovery and queue mutations. The background app log
+  was empty.
+- English/Chinese strings pass plutil; localization keys are consistent and all
+  literal UI keys resolve. Public Lucide source hashes reproduce bundled SVGs.
+- Queue delivery code and core storage are unchanged in this UI iteration.
+  Explicit mode navigation, persistent queue visibility and Shift–Command–V
+  preserve the working behavior recorded in INTERACTIONS.md.
+- No screenshot/visual tuning or physical keyboard tests were run for this
+  iteration. Prior 0.1.0 screenshots and physical paste results above do not
+  validate the redesigned views. Appearance, IME and the permission guide's
+  actual macOS completion flow await user feedback.
+
+## 2026-09-16 image support
+
+- 24 tests pass: the previous 15 core tests, five image storage/queue tests, and
+  four native clipboard representation tests using private named pasteboards.
+- Release build, strict/deep signature verification and the packaged MCP smoke
+  test passed on the local arm64 Mac. MCP exposes 11 tools; the isolated background
+  app log was empty. These results do not claim a remote CI run.
+- Image tests verify mixed order, duplicate references, full pixel dimensions,
+  transparency in PNG/TIFF, browser image-over-URL preference, concealed types,
+  text replacement, pruning, history clearing, restart/Undo, invalid input,
+  atomic append rejection and schema 1 text-data migration.
+- Automated clipboard checks do not read or overwrite the user's general
+  clipboard and do not dispatch a key event. Physical destination-app reception
+  and visual appearance remain for user feedback.
