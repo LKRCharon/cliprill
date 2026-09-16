@@ -124,7 +124,7 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
           retention-days: 14
-      - name: Remove signing keychain and temporary trust
+      - name: Remove temporary signing keychain
         if: ${{ always() }}
         run: python3 scripts/signing-keychain.py cleanup --state-dir "$RUNNER_TEMP/cliprill-signing"
 

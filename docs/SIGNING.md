@@ -58,11 +58,12 @@ silently substitute an ad-hoc signature. Builds without any configuration retain
 an ad-hoc fallback for contributors. Contributors do not need the release key.
 
 Private keys and passwords never enter build arguments or logs. The keychain
-helper passes secret-bearing security commands through standard input, allows
-`codesign` to use the key, and trusts the certificate only for code signing in the
-signing user's domain. It preserves existing keychain search entries and does not
-change the default keychain or system-wide certificate trust. App users do not
-need to install this certificate as a trusted root.
+helper passes secret-bearing security commands through standard input and allows
+`codesign` to use the key. It preserves existing keychain search entries without
+changing the default keychain or installing certificate trust. The explicit
+certificate-pinned requirement works without a trusted root. Keychain operations
+have bounded timeouts and log only their operation names. App users do not need
+to install this certificate as a trusted root.
 
 ## GitHub Actions
 
@@ -75,8 +76,8 @@ imported certificate against the committed PEM before signing.
 PR and main CI use the separate `ci` environment, a fresh disposable certificate
 and the `org.cliprill.Cliprill.ci` bundle ID. They do not receive the release key.
 Each runner uses its own temporary keychain. An always-run cleanup step removes
-that keychain, its search entry, and its certificate's temporary code-signing
-trust. Private key files are never included in package artifacts or build caches.
+that keychain and its search entry. No certificate trust is installed on the
+runner. Private key files are never included in package artifacts or build caches.
 
 Both architectures verify the app and helper against the expected certificate,
 run 24 Swift tests and the packaged MCP smoke test, and run four additional signing

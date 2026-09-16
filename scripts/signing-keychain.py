@@ -16,10 +16,19 @@ import uuid
 from signing import OPENSSL, certificate_der
 
 
+def invoke(args, stage, **kwargs):
+    print(f"Signing keychain: {stage}", flush=True)
+    try:
+        return subprocess.run(args, capture_output=True, timeout=45, **kwargs)
+    except subprocess.TimeoutExpired:
+        # Never include the command, stdin, or captured output in this exception.
+        raise RuntimeError(f"Signing keychain: {stage} timed out after 45 seconds") from None
+
+
 def command(*args, **kwargs):
     if args[0] == "openssl":
         args = (OPENSSL, *args[1:])
-    result = subprocess.run(args, capture_output=True, **kwargs)
+    result = invoke(args, f"{Path(args[0]).name} {args[1]}", **kwargs)
     if result.returncode:
         # Security/OpenSSL diagnostics can echo arguments; keep them out of CI logs.
         raise RuntimeError(f"{Path(args[0]).name} failed (exit {result.returncode})")
@@ -29,7 +38,7 @@ def command(*args, **kwargs):
 def security(*args):
     # security -i keeps passwords out of process arguments and shell tracing.
     line = " ".join(shlex.quote(str(arg)) for arg in args) + "\n"
-    result = subprocess.run(["security", "-i"], input=line, text=True, capture_output=True)
+    result = invoke(["security", "-i"], f"security {args[0]}", input=line, text=True)
     if result.returncode or "SecKeychain" in result.stderr or "SecItem" in result.stderr:
         raise RuntimeError(f"security {args[0]} failed")
 
@@ -89,13 +98,11 @@ def prepare(opts):
         security("set-key-partition-list", "-S", "apple-tool:,apple:", "-s", "-k", keychain_password, str(keychain))
         # codesign needs the identity in the search list even with an explicit --keychain.
         make_searchable(keychain)
-        # Trust this certificate only for code signing, in this user's domain.
-        # Never change system trust, Gatekeeper, or the default keychain.
-        command("security", "add-trusted-cert", "-r", "trustRoot", "-p", "codeSign", str(certificate))
-        state["trust_added"] = True
-        state_file.write_text(json.dumps(state))
+        # An explicit certificate-pinned requirement does not need root trust.
+        # Installing trust can display an authorization dialog on a headless runner.
+        # List all identities: -v would exclude our deliberately untrusted certificate.
         identity = hashlib.sha1(certificate_der(certificate)).hexdigest().upper()
-        identities = command("security", "find-identity", "-v", "-p", "codesigning", str(keychain)).decode()
+        identities = command("security", "find-identity", "-p", "codesigning", str(keychain)).decode()
         if identity not in identities:
             raise RuntimeError("Imported signing identity is unavailable")
         environment = {"CLIPRILL_SIGNING_IDENTITY": identity, "CLIPRILL_SIGNING_KEYCHAIN": str(keychain),
@@ -124,7 +131,8 @@ def cleanup(opts):
     certificate = Path(state["certificate"])
     if keychain.parent != directory or certificate.parent != directory:
         raise ValueError("Signing state does not belong to this directory")
-    if state["trust_added"]:
+    # Clean up trust from an older helper, if one created this state directory.
+    if state.get("trust_added"):
         command("security", "remove-trusted-cert", str(certificate))
         state["trust_added"] = False
         state_file.write_text(json.dumps(state))
