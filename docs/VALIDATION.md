@@ -13,7 +13,7 @@ and requires the dependency lockfile and notices to remain unchanged by the buil
 Tag releases repeat those checks and publish the artifacts from that tagged run.
 These checks do not simulate a physical paste into a destination application.
 
-From 0.2.1, tag builds pin a fixed self-signed certificate. PR/main builds use a
+From 0.2.2, tag builds pin a fixed self-signed certificate. PR/main builds use a
 disposable certificate and separate bundle ID. Four signing checks verify upgrade
 identity and rejection of changed resources, bundle IDs and missing certificates.
 The packaged app and MCP helper are both checked against the expected identity.

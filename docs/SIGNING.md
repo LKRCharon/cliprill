@@ -1,6 +1,6 @@
 # Signing and upgrades
 
-Starting with 0.2.1, official Cliprill releases share the self-signed certificate
+Starting with 0.2.2, official Cliprill releases share the self-signed certificate
 in [`Signing/Cliprill.pem`](../Signing/Cliprill.pem). No Apple Developer Program
 subscription is used. This is not Developer ID signing or Apple notarization;
 downloaded apps may still require **Privacy & Security → Open Anyway**.
@@ -72,7 +72,10 @@ The `release-signing` environment allows only `v*` tags. It stores
 `CLIPRILL_SIGNING_PASSWORD`. Reusable CI selects this environment only for the
 release workflow. A separate job without secrets checks the protected tag and
 main ancestry before the signing jobs start. Each signer checks the imported
-certificate against the committed PEM.
+certificate against the committed PEM. The caller explicitly inherits secrets,
+and the reusable workflow declares both signing secret names. A release job checks
+that the environment supplied them before starting the build; it never prints
+their values.
 
 A repository ruleset restricts `v*` tag creation to administrators. This is the
 trust boundary for the workflow definition itself: an ancestry check inside a
