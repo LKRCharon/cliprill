@@ -16,6 +16,7 @@
 "queue.title" = "Queue title";
 "queue.untitled" = "Untitled queue";
 "search.placeholder" = "Search clips…";
+"search.clear" = "Clear search";
 "clipboard.items" = "Clipboard items";
 "move.up" = "Move up";
 "move.down" = "Move down";

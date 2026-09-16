@@ -23,6 +23,8 @@ enum CliprillAppearance {
     static var separator: NSColor { ink.withAlphaComponent(highContrast ? 0.3 : 0.08) }
     static var hover: NSColor { ink.withAlphaComponent(highContrast ? 0.10 : 0.04) }
     static var selection: NSColor { ink.withAlphaComponent(highContrast ? 0.15 : 0.07) }
+    static var scroller: NSColor { ink.withAlphaComponent(highContrast ? 0.65 : 0.23) }
+    static var scrollerActive: NSColor { ink.withAlphaComponent(highContrast ? 0.8 : 0.42) }
     static func font(_ size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
         .systemFont(ofSize: size, weight: weight)
     }
