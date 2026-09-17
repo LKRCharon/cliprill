@@ -12,6 +12,8 @@ final class PasteCoordinator {
     private var tap: CFMachPort?
     private var tapSource: CFRunLoopSource?
     private var timer: Timer?
+    private var pollTicks = 0
+    private var pollInterval: TimeInterval = 0
     private var observedChange: Int
     private var queue: ClipQueue?
     private var pending: [(pid_t, String)] = []
@@ -37,12 +39,29 @@ final class PasteCoordinator {
     }
     var hasPermission: Bool { AXIsProcessTrusted() }
     var diagnostics: JSONValue {
-        .object(["tap_enabled": .bool(tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false), "key_events": .integer(observedKeyEvents), "paste_events": .integer(observedPasteEvents), "accepting": .bool(accepting), "own_window_key": .bool(isPanelKey?() ?? false), "frontmost_app": .string(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "")])
+        .object(["poll_ticks": .integer(pollTicks), "poll_interval_ms": .integer(Int(pollInterval * 1000)), "tap_enabled": .bool(tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false), "key_events": .integer(observedKeyEvents), "paste_events": .integer(observedPasteEvents), "accepting": .bool(accepting), "own_window_key": .bool(isPanelKey?() ?? false), "frontmost_app": .string(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "")])
     }
-    func start() {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+    func start() { configurePolling() }
+    func configurePolling() {
+        let prefs = UserDefaults.standard
+        let capture = !noCapture && prefs.bool(forKey: "captureEnabled")
+        let configured: TimeInterval
+        switch prefs.string(forKey: "captureSpeed") {
+        case "fast": configured = 0.2
+        case "low": configured = 1.0
+        default: configured = 0.5
+        }
+        let interval: TimeInterval = queue != nil ? 0.2 : (capture ? configured : 0)
+        guard interval != pollInterval else { return }
+        timer?.invalidate(); timer = nil
+        // Re-enabling capture starts from now; do not capture a copy made while disabled.
+        if pollInterval == 0 { observedChange = NSPasteboard.general.changeCount }
+        pollInterval = interval
+        guard interval > 0 else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.poll() }
         }
+        timer?.tolerance = interval * 0.2
     }
     func stop() {
         timer?.invalidate(); headPreparation?.cancel()
@@ -69,9 +88,10 @@ final class PasteCoordinator {
     func update(_ state: CoreState) {
         let oldID = queue?.id
         queue = state.activeQueue
+        configurePolling()
         accepting = queue != nil && pauseDepth == 0
         guard let q = queue, let item = q.next else {
-            headPreparation?.cancel(); headPreparation = nil; preparingItemID = nil
+            headPreparation?.cancel(); headPreparation = nil; preparingItemID = nil; cachedImage = nil
             return
         }
         guard oldID != q.id || (preparingItemID != nil && preparingItemID != item.id) else { return }
@@ -187,6 +207,7 @@ final class PasteCoordinator {
         }
     }
     func pasteHistory(_ item: HistoryItem, target: NSRunningApplication?) async throws {
+        defer { if queue == nil { cachedImage = nil } }
         try ensureTap()
         guard let target, !target.isTerminated, target.processIdentifier != getpid() else { throw CoreError("target_changed", L("target.changed")) }
         await pause(reason: "history_paste")
@@ -216,6 +237,7 @@ final class PasteCoordinator {
         await onChange?()
     }
     private func poll() async {
+        pollTicks += 1
         guard !polling else { return }; polling = true; defer { polling = false }
         if accepting, !hasPermission || IsSecureEventInputEnabled() { await pause(reason: "input_unavailable") }
         let pb = NSPasteboard.general
@@ -233,9 +255,10 @@ final class PasteCoordinator {
             case .text(let text):
                 try await core.capture(text: text, source: source?.localizedName ?? "", capacity: prefs.integer(forKey: "historyCapacity"), retentionDays: prefs.integer(forKey: "retentionDays"))
             case .image(let data):
+                guard prefs.bool(forKey: "captureImages") else { return }
                 let image = try await Task.detached(priority: .utility) { try PreparedClipboardImage(data: data) }.value
                 // Respect a capture preference change made while a large image was decoding.
-                guard !noCapture, prefs.bool(forKey: "captureEnabled") else { return }
+                guard !noCapture, prefs.bool(forKey: "captureEnabled"), prefs.bool(forKey: "captureImages") else { return }
                 try await core.capture(image: image, source: source?.localizedName ?? "", capacity: prefs.integer(forKey: "historyCapacity"), retentionDays: prefs.integer(forKey: "retentionDays"))
             }
             await onChange?()

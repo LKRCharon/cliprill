@@ -12,6 +12,7 @@ static let bundle: Bundle = {
 }
 func L(_ key: String) -> String { NSLocalizedString(key, bundle: CliprillResources.bundle, comment: "") }
 extension KeyboardShortcuts.Name {
+    static let openBoards = Self("openBoards", default: .init(.b, modifiers: [.command, .shift]))
     static let openHistory = Self("openHistory", default: .init(.c, modifiers: [.command, .shift]))
     static let toggleCliprill = Self("toggleCliprill", default: .init(.v, modifiers: [.command, .shift]))
 }
@@ -50,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSource: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        UserDefaults.standard.register(defaults: ["captureEnabled": true, "historyCapacity": 500, "retentionDays": 30])
+        UserDefaults.standard.register(defaults: ["captureEnabled": true, "historyCapacity": 500, "retentionDays": 30, "captureImages": true, "captureSpeed": "balanced", "boardPreviews": true])
         do {
             instance = try InstanceLock(directory: CliprillPaths.dataDirectory)
             core = try QueueCore(directory: CliprillPaths.dataDirectory)
@@ -59,8 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             coordinator.isPanelKey = { NSApp.keyWindow != nil }
             coordinator.onChange = { [weak self] in await self?.refresh() }
             coordinator.onMessage = { [weak self] message in self?.panel.showMessage(message) }
-            status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            status.button?.image = ClipIcon.clipboard.image(size: 18)
+            status = NSStatusBar.system.statusItem(withLength: 34)
+            status.button?.image = MenuBarMark.image
             status.button?.target = self; status.button?.action = #selector(statusClicked)
             status.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
             status.button?.toolTip = "Cliprill"
@@ -71,6 +72,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     KeyboardShortcuts.setShortcut(.init(.v, modifiers: [.command, .shift]), for: .toggleCliprill)
                 }
                 UserDefaults.standard.set(true, forKey: "shiftCommandVShortcutMigrated")
+            }
+            KeyboardShortcuts.onKeyUp(for: .openBoards) { [weak self] in
+                guard let self else { return }
+                if let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != getpid() { self.target = front }
+                self.panel.showBoards(); self.panel.showNearPointer()
+                Task { await self.refresh() }
             }
             KeyboardShortcuts.onKeyUp(for: .openHistory) { [weak self] in self?.openPanel(queue: false) }
             KeyboardShortcuts.onKeyUp(for: .toggleCliprill) { [weak self] in self?.openPanel(queue: true) }
@@ -106,7 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let value = await core.snapshot()
         guard generation == refreshGeneration else { return }
         state = value; coordinator.update(value); panel.reload(value)
-        status.button?.title = value.activeQueue.map { " \($0.remaining)" } ?? ""
+        status.button?.title = ""
         status.button?.contentTintColor = value.activeQueue == nil ? nil : .systemTeal
         status.button?.toolTip = value.activeQueue.map { "Cliprill · \($0.title) · \($0.remaining)" } ?? "Cliprill"
     }
@@ -117,14 +124,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try coordinator.ensureTap()
         }
         let result = try await core.handle(request)
-        await refresh(); return result
+        if !["queue_list", "queue_get", "history_search", "board_list", "board_get"].contains(method) { await refresh() }
+        return result
     }
     func handleIPC(_ request: IPCRequest) async -> IPCResponse {
         do {
             switch request.method {
             case "app_show": if panel.window?.isVisible != true { togglePanel() }; return IPCResponse(result: .object(["visible": .bool(true)]))
             case "app_hide": panel.window?.orderOut(nil); return IPCResponse(result: .object(["visible": .bool(false)]))
-            case "app_status": return IPCResponse(result: .object(["version": .string("0.3.0"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "events": coordinator.diagnostics]))
+            case "app_status": return IPCResponse(result: .object(["version": .string("0.5.0"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "list_rebuilds": .integer(panel.rebuildCount), "events": coordinator.diagnostics]))
             default: return IPCResponse(result: try await perform(request.method, request.arguments))
             }
         } catch { return IPCResponse(error: error) }

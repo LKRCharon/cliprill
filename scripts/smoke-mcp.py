@@ -103,7 +103,7 @@ def main():
         assert initialization["serverInfo"]["name"] == "Cliprill"
         client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         tools = client.request("tools/list")["tools"]
-        assert len(tools) == 11, tools
+        assert len(tools) == 21, tools
         values = ["A", "A", "B\n第二行"]
         key = uuid.uuid4().hex
         args = {"title": "首版验收 · 按顺序粘贴", "items": [{"text": v, "label": label} for v, label in zip(values, ["第一项", "重复项也保留", "多行文本保持一项"])], "idempotency_key": key}
@@ -130,6 +130,18 @@ def main():
             assert client.call("queue_get", {"queue_id": qid})["state"] == "paused"
         assert client.call("history_search", {"limit": 10})["items"] == []
         assert not ipc(directory, "app_status")["panel_visible"]
+        board = client.call("board_create", {"title": "Personal", "color": "blue", "idempotency_key": key + "-board"})
+        bid = board["board_id"]
+        pin_args = {"board_id": bid, "expected_revision": board["revision"], "text": "example@example.com", "label": "Email", "sensitive": True, "idempotency_key": key + "-pin"}
+        pinned = client.call("board_add", pin_args)
+        assert client.call("board_add", pin_args) == pinned
+        assert "text" not in client.call("board_get", {"board_id": bid})["items"][0]
+        assert client.call("board_get", {"board_id": bid, "include_content": True})["items"][0]["text"] == "example@example.com"
+        edited = client.call("board_update", {"board_id": bid, "expected_revision": pinned["revision"], "title": "Essentials", "color": "teal", "idempotency_key": key + "-rename"})
+        assert edited["title"] == "Essentials" and edited["color"] == "teal"
+        diagnostics = ipc(directory, "app_status")
+        assert diagnostics["events"]["poll_interval_ms"] == 0 and diagnostics["events"]["poll_ticks"] == 0, diagnostics
+        assert diagnostics["list_rebuilds"] == status["list_rebuilds"], diagnostics
         client.close(); client = None
         process.terminate(); process.wait(timeout=10)
         process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)"], stdout=log, stderr=log)
@@ -142,6 +154,9 @@ def main():
         else:
             raise RuntimeError("App did not restart")
         assert queues[0]["queue_id"] == qid and queues[0]["remaining"] == 4 and queues[0]["state"] == "paused"
+        saved = ipc(directory, "board_get", {"board_id": bid, "include_content": True})
+        assert saved["title"] == "Essentials" and saved["items"][0]["text"] == "example@example.com"
+        assert ipc(directory, "app_status")["events"]["poll_ticks"] == 0
         if opts.keep_app:
             ipc(directory, "app_show")
         print(json.dumps({"passed": True, "tools": len(tools), "queue_id": qid, "remaining": restored["remaining"], "accessibility": status["accessibility"], "app_pid": process.pid, "data_directory": str(directory)}, ensure_ascii=False))

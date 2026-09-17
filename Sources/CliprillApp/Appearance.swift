@@ -196,3 +196,28 @@ func bodyLabel(_ value: String, size: CGFloat = 13, secondary: Bool = false) -> 
     label.textColor = secondary ? CliprillAppearance.secondary : CliprillAppearance.ink
     return label
 }
+
+/// A filled pair of cards: recognizable at menu-bar size, with a fixed 34 pt hit target.
+@MainActor
+enum MenuBarMark {
+    static let image: NSImage = {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: NSRect(x: 1, y: 5, width: 12, height: 12), xRadius: 3, yRadius: 3).fill()
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(roundedRect: NSRect(x: 4, y: 0, width: 14, height: 15), xRadius: 3.5, yRadius: 3.5).fill()
+            NSGraphicsContext.restoreGraphicsState()
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: NSRect(x: 5.5, y: 1, width: 11.5, height: 12.5), xRadius: 2.5, yRadius: 2.5).fill()
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(roundedRect: NSRect(x: 8, y: 8, width: 6.5, height: 1.5), xRadius: 0.75, yRadius: 0.75).fill()
+            NSBezierPath(roundedRect: NSRect(x: 8, y: 5, width: 4.5, height: 1.5), xRadius: 0.75, yRadius: 0.75).fill()
+            NSGraphicsContext.restoreGraphicsState()
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }()
+}

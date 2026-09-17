@@ -13,7 +13,7 @@ public actor QueueCore {
     public init(directory: URL) throws {
         store = try SQLiteStore(directory: directory)
         state = try store.load()
-        state.schema = 2
+        state.schema = 3
         state.activeID = nil
         for index in state.queues.indices where state.queues[index].status == .active {
             state.queues[index].status = .paused
@@ -36,6 +36,8 @@ public actor QueueCore {
     public func handle(_ request: IPCRequest) throws -> JSONValue {
         let a = request.arguments
         switch request.method {
+        case "board_list", "board_get":
+            return try BoardOperations.read(request, state: state)
         case "queue_list":
             return .object(["queues": .array(state.queues.map { q in
                 var summary = describe(q, content: false).object!
@@ -69,7 +71,7 @@ public actor QueueCore {
         default: break
         }
         let writeMethods: Set<String> = ["queue_create", "queue_append", "queue_reorder", "queue_remove", "queue_delete", "queue_activate", "queue_pause", "queue_undo_last", "history_delete", "history_clear"]
-        guard writeMethods.contains(request.method) else { throw CoreError("unknown_method", "Unknown operation: \(request.method)") }
+        guard writeMethods.contains(request.method) || BoardOperations.writes.contains(request.method) else { throw CoreError("unknown_method", "Unknown operation: \(request.method)") }
         let key = a["idempotency_key"]?.string
         if a["idempotency_key"] != nil && (key == nil || key!.isEmpty || key!.utf8.count > 256) {
             throw CoreError("invalid_arguments", "idempotency_key must be a nonempty string of at most 256 bytes.")
@@ -79,7 +81,9 @@ public actor QueueCore {
         guard reservation == nil else { throw CoreError("busy", "A paste is being dispatched. Retry after it finishes.") }
         var next = state
         let response: JSONValue
-        if request.method == "queue_create" {
+        if BoardOperations.writes.contains(request.method) {
+            response = try BoardOperations.write(request, state: &next)
+        } else if request.method == "queue_create" {
             guard next.queues.count < 100 else { throw CoreError("capacity", "Keep at most 100 queues. Delete an old queue first.") }
             let items = try parseItems(a)
             let title = a["title"]?.string ?? "Queue"
@@ -152,8 +156,11 @@ public actor QueueCore {
         for item in next.queues.flatMap(\.items) {
             if let image = item.image { images[image.id] = image.byteCount }
         }
+        for item in next.boards.flatMap(\.items) {
+            if let image = item.image { images[image.id] = image.byteCount }
+        }
         guard images.values.reduce(0, +) <= Self.maxImageStorageBytes else {
-            throw CoreError("capacity", "Saved queue images exceed 256 MiB. Delete an old queue first.")
+            throw CoreError("capacity", "Saved queue and pinboard images exceed 256 MiB. Remove unused saved images first.")
         }
         try persist(next, key: key, fingerprint: fingerprint, response: response)
         return response
