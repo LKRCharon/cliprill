@@ -37,6 +37,16 @@ final class ClipboardContentTests: XCTestCase {
         guard case .image(let captured) = ClipboardReader.read(from: board) else { return XCTFail("Expected image") }
         XCTAssertEqual(captured, data)
     }
+    @MainActor func testImageCapturePreferenceSkipsImagesButKeepsPlainText() throws {
+        let board = NSPasteboard.withUniqueName(); defer { board.releaseGlobally() }
+        let item = NSPasteboardItem(); item.setData(try png(), forType: .png)
+        item.setString("https://example.com/photo.png", forType: .string)
+        XCTAssertTrue(board.writeObjects([item]))
+        XCTAssertNil(ClipboardReader.read(from: board, captureImages: false))
+        try ClipboardWrite.text("text remains enabled").write(to: board)
+        guard case .text(let value) = ClipboardReader.read(from: board, captureImages: false) else { return XCTFail("Plain text should remain enabled") }
+        XCTAssertEqual(value, "text remains enabled")
+    }
     @MainActor func testTIFFOnlyCaptureAndTextWriteRemovePreviousImage() throws {
         let board = NSPasteboard.withUniqueName(); defer { board.releaseGlobally() }
         let item = NSPasteboardItem(); item.setData(try PreparedClipboardImage.tiff(fromPNG: png()), forType: .tiff)

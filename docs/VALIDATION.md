@@ -123,11 +123,12 @@ receiving application.
 
 ## 2026-09-17 pinboards and efficiency for 0.5.0
 
-- Local arm64: 34 Swift tests pass. New coverage includes schema 2 migration,
+- Local arm64: 35 Swift tests pass. New coverage includes schema 2 migration,
   independent saved snippets, history cleanup/restart, persisted idempotency,
   stale revisions and atomic moves, invalid reordering/inputs, bounded content
   paging, and image retention until the last board reference is removed.
   An unchanged-reference-set regression test checks immediate image disposal.
+  Image-capture preferences skip image payload loading while preserving plain text.
 - Release packaging and four fixed-signature upgrade/tamper checks pass.
   Packaged MCP integration initializes and lists 21 tools, creates/reads/edits
   boards, verifies metadata-only reads and retry safety, and verifies saved

@@ -247,7 +247,7 @@ final class PasteCoordinator {
         let prefs = UserDefaults.standard
         let excluded = Set((prefs.string(forKey: "excludedApps") ?? "com.1password.1password\ncom.agilebits.onepassword7\ncom.apple.keychainaccess").split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) })
         let shouldCapture = !noCapture && prefs.bool(forKey: "captureEnabled") && !excluded.contains(source?.bundleIdentifier ?? "")
-        let content = shouldCapture ? ClipboardReader.read(from: pb) : nil
+        let content = shouldCapture ? ClipboardReader.read(from: pb, captureImages: prefs.bool(forKey: "captureImages")) : nil
         if queue != nil { await pause(reason: "external_copy"); onMessage?(L("copied.paused")) }
         guard let content else { return }
         do {
