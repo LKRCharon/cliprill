@@ -12,6 +12,8 @@ Cliprill 是一款免费开源的 macOS 剪贴板工具，支持文字与图片�
 
 [**下载最新版 →**](https://github.com/LKRCharon/cliprill/releases/latest)
 
+当前版本：**0.6.0**。来源默认隐藏，单击延迟预览、粘贴置顶均可设置。
+
 ## 三种用法
 
 | 想做什么 | 使用方式 | 默认快捷键 |

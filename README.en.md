@@ -12,6 +12,8 @@ Cliprill is a free, open-source clipboard manager for macOS, with support for te
 
 [**Download the latest version →**](https://github.com/LKRCharon/cliprill/releases/latest)
 
+Current release: **0.6.0**. Source labels are hidden by default; click preview and paste recency are configurable.
+
 ## Three ways to use it
 
 | What you want to do | How it works | Default shortcut |
