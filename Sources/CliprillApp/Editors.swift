@@ -88,7 +88,8 @@ final class SettingsController: NSWindowController {
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 20)])
 
         let recorder = KeyboardShortcuts.RecorderCocoa(for: .toggleCliprill)
-        stack.addArrangedSubview(section(L("settings.general"), icon: .keyboard, views: [row(L("open.shortcut"), recorder)]))
+        let historyRecorder = KeyboardShortcuts.RecorderCocoa(for: .openHistory)
+        stack.addArrangedSubview(section(L("settings.general"), icon: .keyboard, views: [row(L("history.shortcut"), historyRecorder), row(L("queue.shortcut"), recorder)]))
         capture.state = UserDefaults.standard.bool(forKey: "captureEnabled") ? .on : .off; capture.target = self; capture.action = #selector(savePreferences)
         capture.font = CliprillAppearance.font(13)
         for n in [100, 500, 1000, 2000] { capacity.addItem(withTitle: String(n)); capacity.lastItem?.tag = n }

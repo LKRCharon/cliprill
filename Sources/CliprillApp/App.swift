@@ -12,6 +12,7 @@ static let bundle: Bundle = {
 }
 func L(_ key: String) -> String { NSLocalizedString(key, bundle: CliprillResources.bundle, comment: "") }
 extension KeyboardShortcuts.Name {
+    static let openHistory = Self("openHistory", default: .init(.c, modifiers: [.command, .shift]))
     static let toggleCliprill = Self("toggleCliprill", default: .init(.v, modifiers: [.command, .shift]))
 }
 
@@ -71,7 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 UserDefaults.standard.set(true, forKey: "shiftCommandVShortcutMigrated")
             }
-            KeyboardShortcuts.onKeyUp(for: .toggleCliprill) { [weak self] in self?.togglePanel() }
+            KeyboardShortcuts.onKeyUp(for: .openHistory) { [weak self] in self?.openPanel(queue: false) }
+            KeyboardShortcuts.onKeyUp(for: .toggleCliprill) { [weak self] in self?.openPanel(queue: true) }
             server = try IPCServer(directory: CliprillPaths.dataDirectory)
             server?.start { [weak self] request in
                 guard let self else { return IPCResponse(error: CoreError("app_unavailable", "Cliprill is closing.")) }
@@ -126,6 +128,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             default: return IPCResponse(result: try await perform(request.method, request.arguments))
             }
         } catch { return IPCResponse(error: error) }
+    }
+    private func openPanel(queue: Bool) {
+        if let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != getpid() { target = front }
+        panel.showMode(queue: queue)
+        Task { await refresh() }
     }
     @objc func togglePanel() {
         if panel.window?.isVisible == true { panel.window?.orderOut(nil) }

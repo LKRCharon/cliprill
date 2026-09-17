@@ -4,7 +4,7 @@ Approved 2026-09-15. Preserve the working queue workflow while updating the nati
 
 ## Queue workflow
 
-- **Shift–Command–V** opens Cliprill near the pointer. Migrate only the original Control–Option–V default; preserve customized shortcuts.
+- **Shift–Command–C** opens History near the pointer for one-off pasting; **Shift–Command–V** opens the persistent Queue panel. Both shortcuts are configurable. Preserve the existing customized shortcut as the queue shortcut. Opening History pauses queue delivery; opening Queue explicitly starts the selected nonempty queue.
 - Switching from History to Queue starts the selected nonempty queue. Selecting another queue pauses the previous one and starts the selected one.
 - The Queue panel stays visible when another app receives focus. Its blank top edge can be dragged. Clicking another app releases the panel's key status.
 - Each ordinary **Command–V** in the destination dispatches one FIFO item and commits one dequeue. Returning to History pauses the queue.
@@ -41,3 +41,5 @@ Permission changes remain in the user's macOS controls. Ad-hoc builds may requir
 ## Validation boundary
 
 Run the core suite, release packaging/signature checks and packaged MCP smoke test. This iteration deliberately avoids repeated screenshot or visual tuning sessions. Physical keyboard behavior, appearance, IME and permission completion remain for the user's trial feedback; automated core checks do not prove those interactions.
+
+History rows show their source, without per-item relative timestamps. Today, Yesterday and Earlier groups use small labels and hairlines above their first matching item. Groups are recalculated after filtering without introducing selectable separator rows. HTTP(S) URLs use the public Lucide link icon; image thumbnails and queue position numbers retain their roles.

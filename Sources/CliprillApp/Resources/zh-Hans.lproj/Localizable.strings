@@ -90,3 +90,8 @@
 "settings.integration" = "集成";
 "settings.mcp" = "连接 AI 助手";
 "image" = "图片";
+"date.today" = "今天";
+"date.yesterday" = "昨天";
+"date.earlier" = "更早";
+"history.shortcut" = "打开剪贴板";
+"queue.shortcut" = "打开队列";

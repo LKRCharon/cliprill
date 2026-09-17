@@ -77,6 +77,7 @@ enum ClipIcon: String, CaseIterable {
     case clipboard = "clipboard-list", search, close = "x", plus, more = "ellipsis"
     case chevronDown = "chevron-down", up = "arrow-up", down = "arrow-down"
     case undo = "undo-2", trash = "trash-2", text, preview = "eye", pause, play
+    case link
     case settings = "settings-2", check, external = "external-link", keyboard
     case permission = "shield-check", folder
 

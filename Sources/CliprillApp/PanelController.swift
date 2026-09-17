@@ -18,6 +18,13 @@ private final class ClipTable: NSTableView {
     }
 }
 private final class ClipRowView: NSTableRowView {
+    var sectionHeight: CGFloat = 0
+    private var itemBounds: NSRect {
+        var rect = bounds
+        rect.size.height = max(0, rect.height - sectionHeight)
+        if isFlipped { rect.origin.y += sectionHeight }
+        return rect
+    }
     private var hovering = false
     private var tracking: NSTrackingArea?
     override var isSelected: Bool { didSet { updateActions() } }
@@ -37,12 +44,12 @@ private final class ClipRowView: NSTableRowView {
     override func drawBackground(in dirtyRect: NSRect) {
         if hovering && !isSelected {
             CliprillAppearance.hover.setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 1), xRadius: 10, yRadius: 10).fill()
+            NSBezierPath(roundedRect: itemBounds.insetBy(dx: 0, dy: 1), xRadius: 10, yRadius: 10).fill()
         }
     }
     override func drawSelection(in dirtyRect: NSRect) {
         CliprillAppearance.selection.setFill()
-        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 1), xRadius: 10, yRadius: 10)
+        let path = NSBezierPath(roundedRect: itemBounds.insetBy(dx: 0, dy: 1), xRadius: 10, yRadius: 10)
         path.fill()
         if CliprillAppearance.highContrast { CliprillAppearance.secondary.setStroke(); path.lineWidth = 1; path.stroke() }
     }
@@ -51,8 +58,27 @@ private final class ClipCell: NSTableCellView {
     var trailing: ActionButton?
     private let thumbnailView = NSImageView()
     func setThumbnail(_ image: NSImage) { thumbnailView.image = image }
-    init(title: String, detail: String, position: String, next: Bool, image: ClipboardImage? = nil, add: (() -> Void)?) {
+    init(title: String, detail: String, position: String, next: Bool, image: ClipboardImage? = nil, sectionTitle: String? = nil, add: (() -> Void)?) {
         super.init(frame: .zero)
+        let content = NSLayoutGuide()
+        addLayoutGuide(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: leadingAnchor), content.trailingAnchor.constraint(equalTo: trailingAnchor),
+            content.topAnchor.constraint(equalTo: topAnchor, constant: sectionTitle == nil ? 0 : 26),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+        if let sectionTitle {
+            let heading = bodyLabel(sectionTitle, size: 11, secondary: true)
+            let line = HairlineView()
+            for view in [heading, line] { view.translatesAutoresizingMaskIntoConstraints = false; addSubview(view) }
+            NSLayoutConstraint.activate([
+                heading.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+                heading.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+                line.leadingAnchor.constraint(equalTo: heading.trailingAnchor, constant: 8),
+                line.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+                line.centerYAnchor.constraint(equalTo: heading.centerYAnchor)
+            ])
+        }
         let primary = bodyLabel(title.isEmpty ? L("empty.text") : title, size: 14)
         let secondary = bodyLabel(detail, size: 12, secondary: true)
         for label in [primary, secondary] {
@@ -63,7 +89,7 @@ private final class ClipCell: NSTableCellView {
         if image != nil && position.isEmpty {
             leading = thumbnailView
         } else if position.isEmpty {
-            let icon = NSImageView(image: ClipIcon.text.image())
+            let icon = NSImageView(image: (Self.isWebLink(title) ? ClipIcon.link : .text).image())
             icon.contentTintColor = CliprillAppearance.secondary; leading = icon
         } else {
             let number = bodyLabel(position, size: 12, secondary: true)
@@ -80,14 +106,14 @@ private final class ClipCell: NSTableCellView {
             thumbnailView.heightAnchor.constraint(equalToConstant: 36).isActive = true
             if !position.isEmpty {
                 addSubview(thumbnailView)
-                NSLayoutConstraint.activate([thumbnailView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 36), thumbnailView.centerYAnchor.constraint(equalTo: centerYAnchor), thumbnailView.widthAnchor.constraint(equalToConstant: 36)])
+                NSLayoutConstraint.activate([thumbnailView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 36), thumbnailView.centerYAnchor.constraint(equalTo: content.centerYAnchor), thumbnailView.widthAnchor.constraint(equalToConstant: 36)])
             }
         }
         NSLayoutConstraint.activate([
             leading.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            leading.widthAnchor.constraint(equalToConstant: image != nil && position.isEmpty ? 36 : 20), leading.centerYAnchor.constraint(equalTo: centerYAnchor),
+            leading.widthAnchor.constraint(equalToConstant: image != nil && position.isEmpty ? 36 : 20), leading.centerYAnchor.constraint(equalTo: content.centerYAnchor),
             primary.leadingAnchor.constraint(equalTo: leadingAnchor, constant: image == nil ? 40 : (position.isEmpty ? 58 : 84)),
-            primary.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            primary.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
             primary.trailingAnchor.constraint(equalTo: trailingAnchor, constant: next ? -64 : (add == nil ? -12 : -40)),
             secondary.leadingAnchor.constraint(equalTo: primary.leadingAnchor),
             secondary.topAnchor.constraint(equalTo: primary.bottomAnchor, constant: 3),
@@ -97,15 +123,22 @@ private final class ClipCell: NSTableCellView {
             let badge = bodyLabel(L("next"), size: 11, secondary: true)
             badge.font = CliprillAppearance.font(11, weight: .medium)
             badge.translatesAutoresizingMaskIntoConstraints = false; addSubview(badge)
-            NSLayoutConstraint.activate([badge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10), badge.centerYAnchor.constraint(equalTo: centerYAnchor)])
+            NSLayoutConstraint.activate([badge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10), badge.centerYAnchor.constraint(equalTo: content.centerYAnchor)])
         }
         if let add {
             let button = ActionButton(icon: .plus, help: L("add.queue"), handler: add)
             addSubview(button); trailing = button
-            NSLayoutConstraint.activate([button.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5), button.centerYAnchor.constraint(equalTo: centerYAnchor)])
+            NSLayoutConstraint.activate([button.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5), button.centerYAnchor.constraint(equalTo: content.centerYAnchor)])
         }
         toolTip = [title, detail].joined(separator: "\n")
         setAccessibilityLabel([position, title, next ? L("next") : "", detail].filter { !$0.isEmpty }.joined(separator: ", "))
+    }
+    private static func isWebLink(_ text: String) -> Bool {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.contains(where: { $0.isWhitespace }), let url = URLComponents(string: value),
+              let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = url.host, !host.isEmpty else { return false }
+        return true
     }
     required init?(coder: NSCoder) { fatalError() }
 }
@@ -138,6 +171,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     private var history: [HistoryItem] = []
     private var queueRows: [QueueItem] = []
     private var historyRows: [HistoryItem] = []
+    private var historySections: [Int: String] = [:]
     var selectedQueueID: String?
     private var currentQueue: ClipQueue? { queues.first { $0.id == selectedQueueID } }
     private var inQueue = false
@@ -264,7 +298,12 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     }
     private var desiredHeight: CGFloat {
         // Header, footer and gaps occupy 159 pt; allow whole 52 pt rows below them.
-        min(552, max(300, 160 + CliprillAppearance.rowHeight * CGFloat(inQueue ? queueRows.count : historyRows.count)))
+        min(552, max(300, 160 + CliprillAppearance.rowHeight * CGFloat(inQueue ? queueRows.count : historyRows.count) + (inQueue ? 0 : CGFloat(historySections.count) * 26)))
+    }
+    func showMode(queue: Bool) {
+        if inQueue != queue { selectMode(queue: queue) }
+        else { clearSearch(); synchronizeQueueMode() }
+        showNearPointer()
     }
     func showNearPointer() {
         guard let window, let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else { return }
@@ -301,6 +340,15 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         let selectedID = inQueue ? queueRows[safe: table.selectedRow]?.id : historyRows[safe: table.selectedRow]?.id
         let query = search.stringValue
         historyRows = history.filter { matches(text: $0.text, image: $0.image, query: query) || $0.source.localizedCaseInsensitiveContains(query) }
+        historySections.removeAll()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        var previousSection: String?
+        for (index, item) in historyRows.enumerated() {
+            let section = item.copiedAt >= today ? "date.today" : (item.copiedAt >= yesterday ? "date.yesterday" : "date.earlier")
+            if section != previousSection { historySections[index] = L(section); previousSection = section }
+        }
         queueRows = Array((currentQueue?.items ?? []).dropFirst(currentQueue?.cursor ?? 0)).filter {
             matches(text: $0.text, image: $0.image, query: query) || $0.label.localizedCaseInsensitiveContains(query)
         }
@@ -392,7 +440,14 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         }
     }
     func numberOfRows(in tableView: NSTableView) -> Int { inQueue ? queueRows.count : historyRows.count }
-    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { ClipRowView() }
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        CliprillAppearance.rowHeight + (!inQueue && historySections[row] != nil ? 26 : 0)
+    }
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let view = ClipRowView()
+        view.sectionHeight = !inQueue && historySections[row] != nil ? 26 : 0
+        return view
+    }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         if inQueue, let item = queueRows[safe: row], let q = currentQueue {
             let index = q.items.firstIndex { $0.id == item.id } ?? 0
@@ -404,10 +459,9 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             return cell
         }
         guard let item = historyRows[safe: row] else { return nil }
-        let date = RelativeDateTimeFormatter().localizedString(for: item.copiedAt, relativeTo: Date())
-        let detail = [item.image.map(imageDetail) ?? "", item.source, date].filter { !$0.isEmpty }.joined(separator: " · ")
+        let detail = [item.image.map(imageDetail) ?? "", item.source].filter { !$0.isEmpty }.joined(separator: " · ")
         let cell = ClipCell(title: item.image == nil ? compact(item.text) : L("image"), detail: detail,
-                            position: "", next: false, image: item.image) { [weak self] in self?.enqueue(item) }
+                            position: "", next: false, image: item.image, sectionTitle: historySections[row]) { [weak self] in self?.enqueue(item) }
         loadThumbnail(item.image, into: cell)
         return cell
     }

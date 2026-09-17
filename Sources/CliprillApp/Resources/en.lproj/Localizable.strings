@@ -90,3 +90,8 @@
 "settings.integration" = "Integrations";
 "settings.mcp" = "Connect an AI assistant";
 "image" = "Image";
+"date.today" = "Today";
+"date.yesterday" = "Yesterday";
+"date.earlier" = "Earlier";
+"history.shortcut" = "Open history";
+"queue.shortcut" = "Open queue";

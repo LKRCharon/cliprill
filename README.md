@@ -32,7 +32,7 @@ releases retain the certificate and bundle ID. See [signing and upgrades](docs/S
 ## Start using it
 
 1. Open `Cliprill.app`. It lives in the menu bar.
-2. Press **Shift–Command–V** to open the panel near the pointer. Change this shortcut in Settings.
+2. Press **Shift–Command–C** for clipboard history and one-off pasting, or **Shift–Command–V** for the persistent paste queue. Both shortcuts can be changed in Settings.
 3. Copy text or an image normally to build history. Images show thumbnails and dimensions. Click a row's **+** to append it to the selected queue; text and images can be mixed.
 4. Choose **New Queue** from the top **⋯** menu to create a queue from text. Choose **Whole text** or explicitly split by lines.
 5. Switch to **Queue** to automatically start the selected queue. The panel stays visible; drag the blank header area to reposition it. The permission guide opens **System Settings → Privacy & Security → Accessibility**, offers **Show Cliprill in Finder** if it is missing from the list, and detects when access is enabled. Click **Continue** to return to your queue.
