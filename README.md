@@ -1,225 +1,91 @@
 # Cliprill
 
-[![CI](https://github.com/LKRCharon/cliprill/actions/workflows/ci.yml/badge.svg)](https://github.com/LKRCharon/cliprill/actions/workflows/ci.yml)
+**简体中文** · [English](README.en.md)
+
 [![Release](https://img.shields.io/github/v/release/LKRCharon/cliprill)](https://github.com/LKRCharon/cliprill/releases/latest)
+[![macOS](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/LKRCharon/cliprill/releases/latest)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
-A small native macOS clipboard manager with reusable pinboards, a FIFO paste queue and an MCP interface.
+**找回刚才复制的内容，把常用信息留在手边，按顺序粘贴一组内容。**
 
-Copy or import `A, A, B`, then press Command–V three times to paste `A`, `A`, `B`.
-The panel opens near your pointer. Queues also work through an embedded MCP helper.
+Cliprill 是一款免费开源的 macOS 剪贴板工具，支持文字与图片。它常驻菜单栏，面板在鼠标附近打开，界面支持简体中文和英文。
 
-Cliprill 0.5.0 supports named, colored pinboards and plain text/image paste queues. Requires macOS 14+.
-The interface is available in English and Simplified Chinese.
+[**下载最新版 →**](https://github.com/LKRCharon/cliprill/releases/latest)
 
-## Install
+## 三种用法
 
-Download the matching ZIP from [Releases](https://github.com/LKRCharon/cliprill/releases/latest):
-`macOS-arm64` for Apple Silicon or `macOS-x86_64` for Intel. Unzip it and open
-`Cliprill.app`; you can move it to Applications first. `SHA256SUMS.txt` accompanies
-each release, and the source archive matches the tagged commit.
+| 想做什么 | 使用方式 | 默认快捷键 |
+| --- | --- | --- |
+| 找回复制过的文字、链接或截图 | **历史**：搜索、预览，选中后回车或双击粘贴 | ⇧⌘C |
+| 依次填写多个字段或粘贴多段内容 | **队列**：每按一次 ⌘V，粘贴并移出下一项 | ⇧⌘V |
+| 反复使用邮箱、地址、工作经历等内容 | **常用板**：按名字和颜色分类，粘贴后仍然保留 | ⇧⌘B |
 
-Official releases use a fixed self-signed certificate, without Developer ID signing
-or Apple notarization. macOS may block
-the first launch. For a copy you trust, use **System Settings → Privacy & Security
-→ Open Anyway**. Sequential paste also requires Accessibility access for that app.
+⇧ 是 Shift，⌘ 是 Command。三个快捷键都可以在设置中修改。
 
-When upgrading from 0.2.0 or earlier, remove the old Cliprill entry from
-**Privacy & Security → Accessibility**, add `/Applications/Cliprill.app` again,
-and enable it. The old grant identifies the previous ad-hoc signature. Subsequent
-releases retain the certificate and bundle ID. See [signing and upgrades](docs/SIGNING.md).
+## 安装
 
-## Start using it
+需要 **macOS 14 或更新版本**，支持 Apple Silicon 和 Intel。
 
-1. Open `Cliprill.app`. It lives in the menu bar.
-2. Press **Shift–Command–C** for clipboard history and one-off pasting, or **Shift–Command–V** for the persistent paste queue. These shortcuts can be changed in Settings.
-3. Copy text or an image normally to build history. Images show thumbnails and dimensions. Click a row's **+** to append it to the selected queue; text and images can be mixed.
-4. Choose **New Queue** from the top **⋯** menu to create a queue from text. Choose **Whole text** or explicitly split by lines.
-5. Switch to **Queue** to automatically start the selected queue. The panel stays visible; drag the blank header area to reposition it. The permission guide opens **System Settings → Privacy & Security → Accessibility**, offers **Show Cliprill in Finder** if it is missing from the list, and detects when access is enabled. Click **Continue** to return to your queue.
-6. Focus your destination app. Each ordinary **Command–V** dispatches one item in FIFO order while the queue stays visible. Switching to **History** or **Pinboards** pauses sequential paste.
+1. 在 [Releases](https://github.com/LKRCharon/cliprill/releases/latest) 下载与你的 Mac 对应的 ZIP：M 系列芯片选 `macOS-arm64`，Intel 芯片选 `macOS-x86_64`。
+2. 解压，将 **Cliprill.app** 放入「应用程序」，然后打开。
+3. 首次使用自动粘贴时，按应用指引到 **系统设置 → 隐私与安全性 → 辅助功能**，允许 Cliprill。
 
-Use the **⋯** or row context menu to reorder or remove remaining items and restore
-the last dispatched item. Restoring an item pauses
-the queue; it does not undo text inside the destination app. Enter pastes a history
-item; Option–Enter appends it to the queue. **Command–Y** or **Preview** in the menu shows full text or an image; Enter previews a queue item.
+当前版本使用固定自签名证书，尚未经过 Apple 公证。如果 macOS 阻止首次打开，请确认下载来自本仓库，再到 **系统设置 → 隐私与安全性 → 仍要打开**。
 
-The panel uses a white surface in light appearance, adapts its height when opened
-or switching modes, and keeps the frame stable while typing a search. The **Next**
-label follows the actual queue cursor, including when search hides that item.
-Escape clears the search before closing the panel; IME composition takes priority.
-See [UI and interaction decisions](docs/INTERACTIONS.md).
+## 找回剪贴板内容
 
-Copying something else pauses an active queue. Closing the panel keeps the service
-running. Restarting the app restores unfinished queues in a paused state. A queue
-owns independent text and image snapshots, so clearing history does not empty it. Duplicate
-entries are preserved; `A, A, B` takes three paste requests. No reverse insertion is needed.
+正常复制文字或图片，按 **⇧⌘C** 打开历史。输入关键词搜索，选中一项后按回车或双击，即可粘贴到之前使用的应用。
 
-## Pinboards: keep frequently used content
+按 **⌘Y** 或使用右键菜单，可以查看完整文字或图片。图片保留原始像素尺寸和透明度；接收应用需要支持图片粘贴。
 
-Press **Shift–Command–B** for **Pinboards / 常用**. Create named, colored boards for
-personal details, work snippets or projects. Save text directly or use History's
-**Pin to board** context menu, including for images. Add short labels, edit long
-snippets, reorder them or move them between boards. Return/double-click pastes
-once; the saved item stays. Clearing history does not delete pinned items.
+## 按顺序粘贴
 
-Individual items can hide their body preview; Settings can hide all board previews.
-This is display masking, not encryption. Full preview/edit and explicit MCP
-content requests can still read the original. See [Pinboards](docs/PINBOARDS.md).
+填表时，可以先把多项内容准备成队列，再逐个粘贴。
 
-Settings also includes login startup, image capture, capture speed (0.2 / 0.5 /
-1 second), retention and exclusions. Balanced 0.5-second capture is the default.
-An active queue checks every 0.2 seconds and retains per-paste safety checks.
-Disabling capture with no active queue stops clipboard polling. The filled menu-bar
-mark has a fixed 34 pt click target; hidden lists are not rebuilt on background updates.
+1. 在历史条目右侧点击 **＋** 加入队列；也可以从 **⋯** 菜单新建队列，直接输入文字，按需选择整段保留或按行拆分。
+2. 按 **⇧⌘V** 打开队列，选中的非空队列会启动，面板保持显示。
+3. 点击目标应用中的输入位置，每按一次 **⌘V**，就粘贴并移出下一项。
 
-The 0.5 upgrade migrates storage to schema 3. For a downgrade path, back up the
-application-support directory with Cliprill stopped; restoring only an older app
-is insufficient. Signing identity and customized History/Queue shortcuts stay unchanged.
+例如，队列是 `A、A、B`，三次 ⌘V 会依次粘贴 `A、A、B`，重复内容也会保留。文字和图片可以混排。
 
-## Paste behavior and limits
+切换到历史或常用板、复制其他内容，会暂停队列；仅关闭面板不会暂停。可以在菜单中调整顺序、删除条目或恢复上一次出队的内容。恢复条目不会撤销目标应用中已经粘贴的内容。
 
-Cliprill sends tagged paste key events to the captured foreground app and advances
-the queue after dispatch. macOS offers no universal acknowledgement that an app
-read the clipboard. A dispatched item is **not a guarantee of successful receipt**.
-If an app ignores the paste, restore the last item and retry. A crash between event
-dispatch and the database commit can also cause an item to need manual review.
+## 把常用信息固定下来
 
-The last dispatched item remains on the clipboard until the next real paste
-request. Distinct rapid presses are serialized with a 160 ms dispatch interval;
-holding Command–V does not repeatedly consume the queue. A slow target can still
-read late. Cliprill intercepts ordinary Command–V only, not menu/trackpad Paste, remapped
-paste keys, Shift–Command–V, rich text, or file transfers. Secure Input and missing
-Accessibility permission prevent queue activation.
+按 **⇧⌘B** 打开常用板，从 **⋯** 菜单新建一个板，设置名字和颜色，例如「个人资料」「工作经历」「项目介绍」。
 
-Image capture accepts raster image data from screenshots and applications (PNG,
-TIFF, JPEG and other supported system image formats). History and queue previews
-show the image; pasting supplies both PNG and TIFF, preserving full pixel dimensions
-and transparency. Browser image data takes priority over an accompanying URL.
-Animated images are currently captured as a still first frame. Copying a Finder
-file is not an image-file transfer feature. See [image behavior and storage](docs/IMAGES.md).
+- 在历史中右键选择 **固定到常用板**，保存文字或图片。
+- 直接添加长段文字，起一个简短名称，方便查找和修改。
+- 调整条目顺序，或移动到另一个板。
+- 回车或双击粘贴，内容仍会保留；清空历史也不会删除固定内容。
 
-## MCP
+身份证号等条目可以单独隐藏预览，也可以在设置中关闭全部常用内容预览。**隐藏预览不是加密**，主动预览、编辑或授权的 MCP 内容读取仍能访问原文。
 
-Settings has **Copy MCP configuration**. The stdio helper is embedded in the app:
+## 按你的习惯设置
 
-```json
-{
-  "mcpServers": {
-    "cliprill": {
-      "command": "/absolute/path/Cliprill.app/Contents/MacOS/cliprill-mcp",
-      "args": []
-    }
-  }
-}
-```
+从 **⋯** 或菜单栏图标的右键菜单打开设置，可以调整：
 
-The helper uses the official Swift MCP SDK. It connects through a current-user-only
-Unix socket and starts its containing app in the background when necessary. No open
-window or network service is required. Set `CLIPRILL_DATA_DIR` consistently in the
-app and helper to use a separate data directory.
+- 三个全局快捷键，以及登录时启动。
+- 是否记录剪贴板、是否保存图片。
+- 历史数量、保留天数，以及不记录的应用。
+- 灵敏／均衡／省电采集频率，以及常用内容的预览显示。
 
-Example `queue_create` arguments:
+## 隐私与常见问题
 
-```json
-{
-  "title": "Form fields",
-  "idempotency_key": "form-001",
-  "items": [
-    {"label": "First field", "text": "A"},
-    {"label": "Second field", "text": "A"},
-    {"label": "Notes", "text": "Line one\nLine two"}
-  ]
-}
-```
+**内容保存在哪里？** 文字、图片和来源应用名称保存在本机，没有遥测或云同步。可以暂停记录，并在设置中排除应用。普通文本中的敏感信息无法全部自动识别，复制此类内容前可以暂停记录。
 
-Read `queue_get` with `include_content: true` to verify exact order. Results use
-`offset`/`limit` paging (up to 100 entries and 2 MB encoded items); follow `next_offset`
-until null. `item_ids` always lists the complete queue order. `queue_activate`
-prepares the clipboard and enables sequential paste; it never types by itself.
+**可以让 AI 工具帮我准备队列吗？** 可以。在设置中复制 MCP 配置，添加到支持 MCP 的客户端，即可管理队列和常用板。连接后，客户端能够读取剪贴板历史并请求固定内容，请只连接你信任的客户端。详细配置见 [MCP 使用说明](docs/MCP.md)。
 
-| Tool | Behavior |
-| --- | --- |
-| `queue_create`, `queue_append` | Atomic ordered writes; duplicate items kept |
-| `queue_list`, `queue_get` | Metadata by default; text only on explicit request |
-| `queue_reorder`, `queue_remove` | Require the current `expected_revision` |
-| `queue_activate`, `queue_pause` | Control sequential paste |
-| `queue_undo_last` | Restore the last dispatched item and pause |
-| `queue_delete` | Delete a saved queue; requires current revision |
-| `history_search` | Read bounded text history or image metadata pages |
+**粘贴没有生效？** 检查辅助功能权限，并确认焦点在目标输入框。队列靠普通 **⌘V** 逐项粘贴，右键菜单中的「粘贴」不会出队。如果目标应用漏接某次粘贴，可以恢复上一项后重试。
 
-Every MCP write requires `idempotency_key`. Repeating a key with identical arguments
-returns the original saved response, even after a restart; use `queue_get` for current
-state. Reusing a key with changed arguments returns `idempotency_conflict`. A queue
-being dispatched returns `busy` for concurrent mutations; retry with the same key.
-Version mismatches return `revision_conflict`, and invalid permutations fail atomically.
+**支持哪些内容？** 当前支持纯文字和图片；暂不支持富文本格式、Finder 文件传输或动态图片的完整动画。
 
-To enqueue an existing image, use an item such as `{"history_id":"ID_FROM_HISTORY_SEARCH"}`
-in `queue_create` or `queue_append`. Each item accepts either `text` or `history_id`,
-with an optional `label`. Image responses include kind, dimensions and size;
-image pixels are not embedded in MCP JSON responses.
+**升级后需要重新授权吗？** 从 0.2.2 起的正式版沿用固定签名。从 0.2.0 或更早版本升级时，需要移除旧的辅助功能条目，再添加并启用应用程序中的 Cliprill。0.5 升级了数据格式；如需保留降级路径，先退出应用并备份 `~/Library/Application Support/Cliprill`，降级时同时恢复旧版应用和备份数据。
 
-Limits: 100 saved queues, 1,000 entries per queue, 256 KiB per text item, 2 MB per text import,
-8 MB total queue text. Images are limited to 40 megapixels and 64 MiB after PNG
-normalization, with 256 MiB each for history and unique queue images.
-History supports up to 2,000 entries within an 8 MB text budget;
-search pages return up to 100 entries and 2 MB of encoded items. The local message limit is 4 MB.
+## 反馈与参与
 
-For shell inspection, the helper also supports:
+欢迎用中文或英文 [报告问题、提出建议](https://github.com/LKRCharon/cliprill/issues)。截图和示例中请不要包含真实身份证号、密码或私人剪贴板内容；安全漏洞请通过 [私密渠道报告](SECURITY.md)。
 
-```sh
-"/path/to/Cliprill.app/Contents/MacOS/cliprill-mcp" --call queue_list '{}'
-```
+想构建或改进 Cliprill？请看 [开发者文档](docs/DEVELOPMENT.md) 和 [贡献指南](CONTRIBUTING.md)。
 
-## Data and privacy
-
-The app stores text, images, thumbnails and source-app names locally in
-`~/Library/Application Support/Cliprill/cliprill.sqlite` (SQLite, WAL, atomic snapshots
-and retry receipts). The directory and socket are private to the current user.
-There is no telemetry, cloud sync or app network listener. MCP clients you configure
-can read text and image metadata through the declared tools; no content is logged by the app/helper.
-
-Transient/concealed pasteboard types and common password-manager bundle IDs are
-excluded from history. Add further app exclusions in Settings. This cannot detect
-every secret copied as plain text. History capture can be disabled. Clearing history
-deletes application records; it is not a forensic disk-erasure guarantee.
-
-## Build and verify
-
-Requires Xcode 16.4 / Swift 6.1 or later and Python 3. No third-party Python modules.
-
-```sh
-swift package resolve
-swift test --disable-automatic-resolution
-python3 scripts/build-app.py
-```
-
-`Package.resolved` pins remote dependencies. KeyboardShortcuts 2.3.0 is vendored with
-one documented resource-loader adaptation for signed app bundles. The script packages the two binaries,
-localized resources, original generated icon and dependency notices, then signs
-and verifies the bundle. It uses a configured signing identity when available;
-unconfigured contributor builds remain ad-hoc signed. Output defaults to
-`../Cliprill.app`. See [signing setup](docs/SIGNING.md) for certificate signing.
-
-For an isolated manual test build:
-
-```sh
-python3 scripts/build-app.py --configuration debug --output /tmp/Cliprill-QA.app --bundle-id org.cliprill.Cliprill.qa
-/tmp/Cliprill-QA.app/Contents/MacOS/Cliprill --data-dir /tmp/cliprill-qa --no-capture
-```
-
-`--background` leaves the panel closed. `--no-capture` avoids recording the real
-clipboard during QA. The app and helper must use the same data directory. See
-`docs/VALIDATION.md` for the tested scope and remaining native paste checks.
-
-GitHub Actions runs Swift tests, release packaging/signature verification and the
-packaged MCP smoke test on Apple Silicon and Intel. See [CONTRIBUTING.md](CONTRIBUTING.md)
-for isolated test commands and PR guidance, [SECURITY.md](SECURITY.md) for private
-vulnerability reports, and [the release process](docs/RELEASING.md) for maintainers.
-
-## License
-
-Original code is **AGPL-3.0-only**. This is strong copyleft and allows commercial use;
-it does not prohibit competitors or commercial forks. Dependencies retain their own
-licenses in `ThirdPartyNotices/`. Brand use is discussed separately in `BRAND.md`.
-Rebuilding or moving the app can require reauthorizing Accessibility. The build
-script only creates a local app; the GitHub Release workflow publishes tagged builds.
+Cliprill 以 [AGPL-3.0-only](LICENSE) 协议开源。

@@ -55,7 +55,7 @@ def main():
         iconset = pathlib.Path(tmp) / "Cliprill.iconset"
         run("swift", str(ROOT / "scripts/make-icon.swift"), str(iconset))
         run("iconutil", "-c", "icns", str(iconset), "-o", str(resources / "Cliprill.icns"))
-        for name in ["LICENSE", "README.md", "BRAND.md"]:
+        for name in ["LICENSE", "README.md", "README.en.md", "CONTRIBUTING.md", "SECURITY.md", "BRAND.md"]:
             shutil.copy2(ROOT / name, resources / name)
         if (ROOT / "docs").exists():
             shutil.copytree(ROOT / "docs", resources / "docs")
