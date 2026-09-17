@@ -87,7 +87,7 @@ def main():
     directory.mkdir(parents=True, exist_ok=True)
     logfile = directory / "app.log"
     log = logfile.open("wb")
-    process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)"], stdout=log, stderr=log)
+    process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)", "-autoDeleteEmptyQueues", "YES"], stdout=log, stderr=log)
     client = None
     try:
         for _ in range(80):
@@ -130,6 +130,13 @@ def main():
             assert client.call("queue_get", {"queue_id": qid})["state"] == "paused"
         assert client.call("history_search", {"limit": 10})["items"] == []
         assert not ipc(directory, "app_status")["panel_visible"]
+        assert status["auto_delete_empty_queues"]
+        disposable = client.call("queue_create", {"items": [{"text": "one-use"}], "idempotency_key": key + "-empty-create"})
+        remove_args = {"queue_id": disposable["queue_id"], "item_id": disposable["item_ids"][0], "expected_revision": disposable["revision"], "idempotency_key": key + "-empty-remove"}
+        removed = client.call("queue_remove", remove_args)
+        assert removed["deleted"] is True
+        assert client.call("queue_remove", remove_args) == removed
+        assert client.call("queue_get", {"queue_id": disposable["queue_id"]}, error=True)["code"] == "not_found"
         board = client.call("board_create", {"title": "Personal", "color": "blue", "idempotency_key": key + "-board"})
         bid = board["board_id"]
         pin_args = {"board_id": bid, "expected_revision": board["revision"], "text": "example@example.com", "label": "Email", "sensitive": True, "idempotency_key": key + "-pin"}
@@ -144,7 +151,7 @@ def main():
         assert diagnostics["list_rebuilds"] == status["list_rebuilds"], diagnostics
         client.close(); client = None
         process.terminate(); process.wait(timeout=10)
-        process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)"], stdout=log, stderr=log)
+        process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)", "-autoDeleteEmptyQueues", "YES"], stdout=log, stderr=log)
         for _ in range(80):
             try:
                 queues = ipc(directory, "queue_list")["queues"]

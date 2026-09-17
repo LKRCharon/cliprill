@@ -69,6 +69,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
     private let permission = NSTextField(labelWithString: "")
     private let capture = NSButton(checkboxWithTitle: L("capture.history"), target: nil, action: nil)
     private let images = NSButton(checkboxWithTitle: L("settings.images"), target: nil, action: nil)
+    private let autoDeleteQueues = NSButton(checkboxWithTitle: L("settings.queue.cleanup"), target: nil, action: nil)
     private let previews = NSButton(checkboxWithTitle: L("settings.previews"), target: nil, action: nil)
     private let login = NSButton(checkboxWithTitle: L("settings.login"), target: nil, action: nil)
     private let speed = NSPopUpButton()
@@ -107,6 +108,11 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         login.target = self; login.action = #selector(changeLogin)
         stack.addArrangedSubview(section(L("settings.behavior"), icon: .settings, views: [login, previews, row(L("settings.speed"), speed)]))
+        autoDeleteQueues.state = UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues") ? .on : .off
+        autoDeleteQueues.target = self; autoDeleteQueues.action = #selector(changeQueueCleanup)
+        let queueHint = NSTextField(wrappingLabelWithString: L("settings.queue.cleanup.hint"))
+        queueHint.font = CliprillAppearance.font(12); queueHint.textColor = CliprillAppearance.secondary
+        stack.addArrangedSubview(section(L("queue"), icon: .clipboard, views: [autoDeleteQueues, queueHint]))
         capture.state = UserDefaults.standard.bool(forKey: "captureEnabled") ? .on : .off; capture.target = self; capture.action = #selector(savePreferences)
         capture.font = CliprillAppearance.font(13)
         for n in [100, 500, 1000, 2000] { capacity.addItem(withTitle: String(n)); capacity.lastItem?.tag = n }
@@ -186,6 +192,21 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         if login.state == .on && feedback.stringValue == L("settings.login.approval") { feedback.stringValue = L("saved") }
         permission.stringValue = appDelegate.coordinator.hasPermission ? L("permission.ready") : L("permission.missing")
         permission.textColor = CliprillAppearance.secondary
+    }
+    @objc private func changeQueueCleanup() {
+        let enabled = autoDeleteQueues.state == .on
+        autoDeleteQueues.isEnabled = false
+        Task {
+            defer { autoDeleteQueues.isEnabled = true }
+            do {
+                try await appDelegate.core.setAutoDeleteEmptyQueues(enabled)
+                UserDefaults.standard.set(enabled, forKey: "autoDeleteEmptyQueues")
+                await appDelegate.refresh(); feedback.stringValue = L("saved")
+            } catch {
+                autoDeleteQueues.state = UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues") ? .on : .off
+                feedback.stringValue = error.localizedDescription
+            }
+        }
     }
     @objc private func savePreferences() {
         let defaults = UserDefaults.standard

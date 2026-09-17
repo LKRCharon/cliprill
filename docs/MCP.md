@@ -53,6 +53,12 @@ prepares the clipboard and enables sequential paste; it never types by itself.
 | `board_add`, `board_edit_item`, `board_remove` | Save text/history snapshots, edit or remove items |
 | `board_reorder`, `board_move` | Reorder saved items or atomically move between boards |
 
+Empty queues are automatically deleted by default after the final dispatch or
+`queue_remove`. The latter returns `deleted: true`; subsequent reads return
+`not_found`. Retrying the same mutation key still returns its saved receipt.
+Users can turn this policy off in Settings → Queue to retain completed queues for
+`queue_undo_last` or later appends. Automatic deletion never activates another queue.
+
 Every MCP write requires `idempotency_key`. Repeating a key with identical arguments
 returns the original saved response, even after a restart; use `queue_get` for current
 state. Reusing a key with changed arguments returns `idempotency_conflict`. A queue

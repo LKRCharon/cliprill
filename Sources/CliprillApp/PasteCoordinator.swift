@@ -154,6 +154,7 @@ final class PasteCoordinator {
         return nil
     }
     private func pump() async {
+        var completedQueueID: String?
         defer { pumping = false }
         while !pending.isEmpty {
             // A fast Cmd-V waits for image conversion instead of pasting the previous clipboard.
@@ -167,7 +168,7 @@ final class PasteCoordinator {
                 guard NSPasteboard.general.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
                 guard hasPermission, !IsSecureEventInputEnabled() else { throw CoreError("accessibility_required", L("permission.required")) }
                 let state = await core.snapshot()
-                if state.activeQueue == nil, state.queues.first(where: { $0.id == queueID })?.status == .completed {
+                if state.activeQueue == nil, (completedQueueID == queueID || state.queues.first(where: { $0.id == queueID })?.status == .completed) {
                     // Extra distinct key presses after the final item retain normal paste behavior.
                     try sendPaste(to: pid)
                 } else {
@@ -183,6 +184,7 @@ final class PasteCoordinator {
                     try write(content)
                     try sendPaste(to: pid)
                     try await core.commit(r.token); token = nil
+                    if state.activeQueue?.remaining == 1 { completedQueueID = queueID }
                     await onChange?()
                 }
                 // A dispatch rate limit, never treated as proof that the target read the clipboard.

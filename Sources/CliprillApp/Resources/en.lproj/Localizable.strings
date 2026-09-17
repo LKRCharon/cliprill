@@ -137,3 +137,6 @@
 "speed.fast" = "Fast · 0.2 s";
 "speed.balanced" = "Balanced · 0.5 s";
 "speed.low" = "Low power · 1 s";
+
+"settings.queue.cleanup" = "Delete queues when empty";
+"settings.queue.cleanup.hint" = "On by default. Finishing or removing the last item deletes the queue. Enabling also removes existing empty queues. Turn off to keep completed queues and restore the last item.";
