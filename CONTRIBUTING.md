@@ -4,6 +4,9 @@ Bug reports and pull requests are welcome in English or Chinese. For substantial
 changes, open an issue describing the workflow first. Use synthetic clipboard text
 in tests, screenshots and reports.
 
+See the [developer guide](docs/DEVELOPMENT.md) for the code map, architecture and
+additional build options, and the [MCP guide](docs/MCP.md) for the integration API.
+
 ## Build and test
 
 Use macOS 14 or later, Xcode 16.4 / Swift 6.1 or later, and Python 3.
