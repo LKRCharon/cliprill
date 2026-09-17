@@ -85,6 +85,7 @@ private final class ClipCell: NSTableCellView {
             label.lineBreakMode = .byTruncatingTail; label.maximumNumberOfLines = 1
             label.translatesAutoresizingMaskIntoConstraints = false; addSubview(label)
         }
+        secondary.isHidden = detail.isEmpty
         let leading: NSView
         if image != nil && position.isEmpty {
             leading = thumbnailView
@@ -113,7 +114,7 @@ private final class ClipCell: NSTableCellView {
             leading.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             leading.widthAnchor.constraint(equalToConstant: image != nil && position.isEmpty ? 36 : 20), leading.centerYAnchor.constraint(equalTo: content.centerYAnchor),
             primary.leadingAnchor.constraint(equalTo: leadingAnchor, constant: image == nil ? 40 : (position.isEmpty ? 58 : 84)),
-            primary.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
+            detail.isEmpty ? primary.centerYAnchor.constraint(equalTo: content.centerYAnchor) : primary.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
             primary.trailingAnchor.constraint(equalTo: trailingAnchor, constant: next ? -64 : (add == nil ? -12 : -40)),
             secondary.leadingAnchor.constraint(equalTo: primary.leadingAnchor),
             secondary.topAnchor.constraint(equalTo: primary.bottomAnchor, constant: 3),
@@ -315,8 +316,9 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         reloadRows()
     }
     private var desiredHeight: CGFloat {
-        // Header, footer and gaps occupy 159 pt; allow whole 52 pt rows below them.
-        min(552, max(300, 160 + CliprillAppearance.rowHeight * CGFloat(inBoards ? boardRows.count : (inQueue ? queueRows.count : historyRows.count)) + (mode == .history ? CGFloat(historySections.count) * 26 : 0)))
+        let count = inBoards ? boardRows.count : (inQueue ? queueRows.count : historyRows.count)
+        let rowsHeight = (0..<count).reduce(CGFloat.zero) { $0 + tableView(table, heightOfRow: $1) }
+        return min(552, max(300, 160 + rowsHeight))
     }
     func showMode(queue: Bool) {
         if mode != (queue ? .queue : .history) { selectMode(queue: queue) }
@@ -487,7 +489,9 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     }
     func numberOfRows(in tableView: NSTableView) -> Int { inBoards ? boardRows.count : (inQueue ? queueRows.count : historyRows.count) }
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        CliprillAppearance.rowHeight + (mode == .history && historySections[row] != nil ? 26 : 0)
+        let compact = mode == .history && historyRows[safe: row]?.image == nil
+            && !UserDefaults.standard.bool(forKey: "showSourceApps")
+        return (compact ? 40 : CliprillAppearance.rowHeight) + (mode == .history && historySections[row] != nil ? 26 : 0)
     }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         let view = ClipRowView()
@@ -513,7 +517,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             return cell
         }
         guard let item = historyRows[safe: row] else { return nil }
-        let detail = [item.image.map(imageDetail) ?? "", item.source].filter { !$0.isEmpty }.joined(separator: " · ")
+        let detail = [item.image.map(imageDetail) ?? "", UserDefaults.standard.bool(forKey: "showSourceApps") ? item.source : ""].filter { !$0.isEmpty }.joined(separator: " · ")
         let cell = ClipCell(title: item.image == nil ? compact(item.text) : L("image"), detail: detail,
                             position: "", next: false, image: item.image, sectionTitle: historySections[row]) { [weak self] in self?.enqueue(item) }
         loadThumbnail(item.image, into: cell)

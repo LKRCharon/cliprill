@@ -145,3 +145,5 @@
 
 "settings.paste.top" = "粘贴后将历史条目置顶";
 "settings.preview.delay" = "预览等待时间";
+
+"settings.source.apps" = "显示来源应用";

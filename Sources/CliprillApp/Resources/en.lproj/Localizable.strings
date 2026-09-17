@@ -145,3 +145,5 @@
 
 "settings.paste.top" = "Move pasted history items to the top";
 "settings.preview.delay" = "Preview delay";
+
+"settings.source.apps" = "Show source apps";
