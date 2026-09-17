@@ -92,6 +92,39 @@ enum ClipIcon: String, CaseIterable {
     }
 }
 
+private final class ActionButtonCell: NSButtonCell {
+    static let contentInset: CGFloat = 10
+    static let imageTitleSpacing: CGFloat = 6
+
+    var imageAndTitleSize: NSSize? {
+        guard let image, !title.isEmpty, imagePosition == .imageLeading else { return nil }
+        let text = attributedTitle.size()
+        return NSSize(width: image.size.width + Self.imageTitleSpacing + ceil(text.width),
+                      height: max(image.size.height, ceil(text.height)))
+    }
+
+    override func drawInterior(withFrame frame: NSRect, in controlView: NSView) {
+        guard let image, let contentSize = imageAndTitleSize else {
+            super.drawInterior(withFrame: frame, in: controlView)
+            return
+        }
+        let textHeight = ceil(attributedTitle.size().height)
+        let contentWidth = min(contentSize.width, max(0, frame.width - 2 * Self.contentInset))
+        let textWidth = max(0, contentWidth - image.size.width - Self.imageTitleSpacing)
+        let leading = frame.midX - contentWidth / 2
+        let rightToLeft = controlView.userInterfaceLayoutDirection == .rightToLeft
+        let imageX = rightToLeft ? leading + textWidth + Self.imageTitleSpacing : leading
+        let textX = rightToLeft ? leading : leading + image.size.width + Self.imageTitleSpacing
+        let imageFrame = NSRect(x: imageX, y: frame.midY - image.size.height / 2,
+                                width: image.size.width, height: image.size.height)
+        let textFrame = NSRect(x: textX, y: frame.midY - textHeight / 2,
+                              width: textWidth, height: textHeight)
+        // Keep native image tinting and text rendering while centering the combined content.
+        drawImage(image, withFrame: imageFrame, in: controlView)
+        _ = drawTitle(attributedTitle, withFrame: textFrame, in: controlView)
+    }
+}
+
 final class ActionButton: NSButton {
     enum Style { case plain, prominent }
     var handler: (() -> Void)?
@@ -101,6 +134,7 @@ final class ActionButton: NSButton {
     init(title: String = "", icon: ClipIcon? = nil, help: String? = nil, style: Style = .plain,
          handler: @escaping () -> Void) {
         super.init(frame: .zero)
+        cell = ActionButtonCell(textCell: title)
         self.title = title; self.style = style; self.handler = handler
         if let icon { image = icon.image() }
         imagePosition = title.isEmpty ? .imageOnly : (icon == nil ? .noImage : .imageLeading)
@@ -114,6 +148,9 @@ final class ActionButton: NSButton {
     }
     required init?(coder: NSCoder) { fatalError() }
     override var intrinsicContentSize: NSSize {
+        if let content = (cell as? ActionButtonCell)?.imageAndTitleSize {
+            return NSSize(width: content.width + 2 * ActionButtonCell.contentInset, height: 28)
+        }
         let size = super.intrinsicContentSize
         return NSSize(width: title.isEmpty ? 28 : max(28, size.width + 18), height: 28)
     }

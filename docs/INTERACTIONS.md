@@ -16,13 +16,15 @@ Approved 2026-09-15. Preserve the working queue workflow while updating the nati
 
 ## Visual implementation
 
-The 420 pt native floating panel has a 14 pt draggable top strip, a 38 pt search surface, one mode row, a 52 pt item list, and one footer. Low-frequency actions live in the top menu and each row's context menu. The footer shows queue state, remaining count and one relevant action.
+The 420 pt native floating panel has a 14 pt draggable top strip, a 38 pt search surface, one mode row, a 52 pt item list, and one footer. Low-frequency actions live in the top menu and each row's context menu. The queue footer shows one relevant action, with no persistent status sentence or repeated remaining count. The Queue tab carries the count. Action feedback and errors appear briefly in the footer; History keeps its keyboard hints.
 
 Initial height is clamped to 300–552 pt from 160 + 52 × row count, then bounded by the screen. Opening, changing modes/queues, importing and clearing search can resize the panel. Ordinary search edits and background queue updates keep its frame stable. The first row is positioned close to the pointer.
 
 Light appearance uses white, with neutral hover and selection. Dark appearance uses an opaque matching palette. System accent indicates keyboard focus and permission completion. Increased Contrast strengthens boundaries. Surfaces are opaque for Reduce Transparency and resizing has no decorative animation.
 
 Controls retain native text editing and button/menu accessibility. Public Lucide 0.456.0 SVGs use a 24-unit grid, 1.75-unit stroke, 16 pt display size (18 pt in the menu bar), and 28 pt button targets. AppKit loads these vectors directly. Vendor/Lucide/manifest.json pins sources and hashes; scripts/prepare-icons.py reproduces resource copies. The full upstream ISC/Feather MIT notices ship in ThirdPartyNotices/Lucide-LICENSE. No proprietary reference assets are included.
+
+Buttons with both an icon and a title center them as one group, with a 6 pt gap and 10 pt horizontal padding. Their cells retain native image tinting, text rendering, keyboard actions and accessibility.
 
 The search icon, native input and clear button occupy separate layout regions, with an 8 pt gap between the icon and input. The input uses its native intrinsic height, centered with the icon, so placeholder text and the editing caret share the same vertical alignment. The clear button's space stays reserved when the query is empty. A single 1 pt outline follows the 38 pt search surface; keyboard focus uses the system accent and Increased Contrast raises it to 2 pt. Placeholder text uses the secondary text color. Clicking the icon or input padding focuses search instead of dragging the panel.
 

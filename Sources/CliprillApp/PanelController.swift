@@ -118,7 +118,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     private let selector = NSPopUpButton()
     private let table = ClipTable()
     private let scroll = NSScrollView()
-    private let stateLabel = NSTextField(wrappingLabelWithString: "")
+    private let messageLabel = NSTextField(wrappingLabelWithString: "")
     private let emptyTitle = bodyLabel("", size: 14)
     private let emptyDetail = NSTextField(wrappingLabelWithString: "")
     private var historyTab: ActionButton!
@@ -251,11 +251,11 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         NSLayoutConstraint.activate([empty.centerXAnchor.constraint(equalTo: list.centerXAnchor), empty.centerYAnchor.constraint(equalTo: list.centerYAnchor), empty.widthAnchor.constraint(lessThanOrEqualToConstant: 280)])
         stack.addArrangedSubview(list)
         stack.addArrangedSubview(HairlineView())
-        stateLabel.font = CliprillAppearance.font(12); stateLabel.textColor = CliprillAppearance.secondary
-        stateLabel.maximumNumberOfLines = 2; stateLabel.lineBreakMode = .byTruncatingTail
-        stateLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        messageLabel.font = CliprillAppearance.font(12); messageLabel.textColor = CliprillAppearance.secondary
+        messageLabel.maximumNumberOfLines = 2; messageLabel.lineBreakMode = .byTruncatingTail
+        messageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         toggle = ActionButton(title: L("start")) { [weak self] in self?.footerAction() }
-        let footer = horizontalRow([stateLabel, NSView(), toggle]); footer.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        let footer = horizontalRow([messageLabel, NSView(), toggle]); footer.heightAnchor.constraint(equalToConstant: 32).isActive = true
         stack.addArrangedSubview(footer)
         for child in stack.arrangedSubviews {
             child.translatesAutoresizingMaskIntoConstraints = false; child.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -319,7 +319,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         selector.toolTip = currentQueue?.title
         historyTab.state = inQueue ? .off : .on; queueTab.state = inQueue ? .on : .off
         queueTab.title = L("queue") + "  \(currentQueue?.remaining ?? 0)"
-        if Date() >= messageUntil { updateStatus() }
+        if Date() >= messageUntil { resetFooterMessage() }
         updateFooter()
     }
     private func updateFooter() {
@@ -338,22 +338,16 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         toggle.setAccessibilityLabel(toggle.title); toggle.toolTip = toggle.title
         toggle.invalidateIntrinsicContentSize()
     }
-    private func updateStatus() {
-        stateLabel.textColor = CliprillAppearance.secondary
-        if inQueue, let q = currentQueue {
-            let remaining = String(format: L("remaining.format"), q.remaining)
-            if q.status == .active { stateLabel.stringValue = L("status.active") + " · " + remaining }
-            else if q.pauseReason == "external_copy" { stateLabel.stringValue = L("copied.paused") }
-            else if q.pauseReason == "app_restarted" { stateLabel.stringValue = L("status.recovered") + " · " + remaining }
-            else if q.status == .completed { stateLabel.stringValue = L("status.complete") }
-            else { stateLabel.stringValue = appDelegate.coordinator.hasPermission ? L("status.paused") + " · " + remaining : L("permission.required") }
-        } else { stateLabel.stringValue = inQueue ? L("queue.empty.detail") : L("status.history") }
-        stateLabel.toolTip = stateLabel.stringValue
+    private func resetFooterMessage() {
+        messageLabel.textColor = CliprillAppearance.secondary
+        messageLabel.stringValue = inQueue ? "" : L("status.history")
+        messageLabel.toolTip = inQueue ? nil : messageLabel.stringValue
+        messageLabel.isHidden = inQueue
     }
     func showMessage(_ text: String) {
         messageUntil = Date().addingTimeInterval(4)
-        stateLabel.stringValue = text; stateLabel.toolTip = text
-        Task { try? await Task.sleep(nanoseconds: 4_100_000_000); if Date() >= messageUntil { updateStatus() } }
+        messageLabel.stringValue = text; messageLabel.toolTip = text; messageLabel.isHidden = false
+        Task { try? await Task.sleep(nanoseconds: 4_100_000_000); if Date() >= messageUntil { resetFooterMessage() } }
     }
     func controlTextDidChange(_ obj: Notification) { reloadRows(); if search.stringValue.isEmpty { resizeForContents() } }
     func controlTextDidBeginEditing(_ obj: Notification) { searchSurface.needsDisplay = true }
