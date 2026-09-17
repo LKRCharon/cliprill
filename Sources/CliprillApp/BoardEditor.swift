@@ -34,7 +34,7 @@ final class BoardEditor: NSWindowController {
          save: @escaping (String, String, BoardColor, Bool) async throws -> Void) {
         self.save = save
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: editingItem ? 400 : 190), styleMask: [.titled], backing: .buffered, defer: false)
-        window.title = L(editingItem ? "board.item.edit" : "board.properties")
+        window.title = L(editingItem ? (item == nil ? "board.item.new" : "board.item.edit") : (board == nil ? "board.new" : "board.properties"))
         window.titlebarAppearsTransparent = true; window.backgroundColor = CliprillAppearance.windowBackground
         super.init(window: window)
         let root = SurfaceView(); window.contentView = root

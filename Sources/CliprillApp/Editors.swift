@@ -180,7 +180,10 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
     private func row(_ title: String, _ control: NSView) -> NSStackView {
         horizontalRow([bodyLabel(title), NSView(), control])
     }
+    func windowDidBecomeKey(_ notification: Notification) { refreshPermission() }
     func refreshPermission() {
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        if login.state == .on && feedback.stringValue == L("settings.login.approval") { feedback.stringValue = L("saved") }
         permission.stringValue = appDelegate.coordinator.hasPermission ? L("permission.ready") : L("permission.missing")
         permission.textColor = CliprillAppearance.secondary
     }

@@ -753,7 +753,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     }
     private func addBoardDestinations(to menu: NSMenu, move: Bool) {
         let entry = menu.addItem(withTitle: L(move ? "board.move" : "board.pin"), action: nil, keyEquivalent: "")
-        entry.isEnabled = table.selectedRow >= 0 && !boards.isEmpty
+        entry.isEnabled = table.selectedRow >= 0 && boards.contains { !move || $0.id != selectedBoardID }
         let destinations = NSMenu(); entry.submenu = destinations
         for board in boards where !move || board.id != selectedBoardID {
             let item = destinations.addItem(withTitle: board.title, action: #selector(boardDestination(_:)), keyEquivalent: "")
