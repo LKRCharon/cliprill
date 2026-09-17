@@ -101,6 +101,11 @@
       "file": "folder.svg",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/0.456.0/icons/folder.svg",
       "sha256": "f0d92b94b797a8ab7d4c4ae33c3236c47f64068351b4e14bdb5014ee42898a39"
+    },
+    {
+      "file": "link.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/0.456.0/icons/link.svg",
+      "sha256": "4f3237183dcaabfac92f4e94c776a9a9e45c3c5e77a921061a6b34b61eb5413f"
     }
   ]
 }

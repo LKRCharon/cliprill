@@ -11,7 +11,7 @@ private struct ToolSpec {
     let readOnly: Bool
     var tool: Tool {
         let schema = JSONValue.object(["type": .string("object"), "properties": .object(properties), "required": .array(required.map(JSONValue.string)), "additionalProperties": .bool(false)])
-        return Tool(name: name, description: description, inputSchema: try! JSONDecoder().decode(Value.self, from: schema.encoded()), annotations: .init(readOnlyHint: readOnly, destructiveHint: name == "queue_remove" || name == "queue_delete", idempotentHint: true, openWorldHint: false))
+        return Tool(name: name, description: description, inputSchema: try! JSONDecoder().decode(Value.self, from: schema.encoded()), annotations: .init(readOnlyHint: readOnly, destructiveHint: ["queue_remove", "queue_delete", "board_remove", "board_delete"].contains(name), idempotentHint: true, openWorldHint: false))
     }
 }
 
@@ -35,7 +35,23 @@ enum CliprillMCP {
         func spec(_ name: String, _ description: String, _ properties: [String: JSONValue], _ required: [String], _ read: Bool = false) -> ToolSpec {
             ToolSpec(name: name, description: description, properties: properties, required: required, readOnly: read)
         }
+        let board: [String: JSONValue] = ["board_id": string]
+        let boardWrite = board.merging(["idempotency_key": string, "expected_revision": integer]) { $1 }
+        let boardRequired = ["board_id", "expected_revision", "idempotency_key"]
+        let boolean: JSONValue = .object(["type": .string("boolean")])
+        let color: JSONValue = .object(["type": .string("string"), "enum": .array(BoardColor.allCases.map { .string($0.rawValue) })])
+        let label: JSONValue = .object(["type": .string("string")])
         return [
+            spec("board_list", "List permanent pinboard names, colors, counts and revisions, without item content.", [:], [], true),
+            spec("board_get", "Read saved item metadata. Explicit include_content=true returns text, including preview-hidden items. Images return metadata only. Follow next_offset; item_ids lists the full order.", board.merging(["include_content": boolean, "offset": integer, "limit": .object(["type": .string("integer"), "minimum": .integer(1), "maximum": .integer(100)])]) { $1 }, ["board_id"], true),
+            spec("board_create", "Create a named, colored pinboard. Items survive history cleanup and are never consumed by pasting.", ["title": string, "color": color, "idempotency_key": string], ["title", "idempotency_key"]),
+            spec("board_update", "Rename or recolor a saved board.", boardWrite.merging(["title": string, "color": color]) { $1 }, boardRequired),
+            spec("board_delete", "Delete a pinboard and its saved items. Does not remove history or queues.", boardWrite, boardRequired),
+            spec("board_add", "Save one text snippet or an independent snapshot of a history item, including images. Supply exactly one of text and history_id. sensitive hides the UI preview, not encryption.", boardWrite.merging(["text": string, "history_id": string, "label": label, "sensitive": boolean]) { $1 }, boardRequired),
+            spec("board_edit_item", "Edit a saved item's label, text or preview visibility. Image pixels cannot be edited as text.", boardWrite.merging(["item_id": string, "text": string, "label": label, "sensitive": boolean]) { $1 }, boardRequired + ["item_id"]),
+            spec("board_remove", "Remove one saved item, preserving its history or queue copies.", boardWrite.merging(["item_id": string]) { $1 }, boardRequired + ["item_id"]),
+            spec("board_reorder", "Reorder all saved items. Supply every item ID exactly once.", boardWrite.merging(["item_ids": .object(["type": .string("array"), "items": string])]) { $1 }, boardRequired + ["item_ids"]),
+            spec("board_move", "Move one saved item to another pinboard atomically. Both board revisions are required.", boardWrite.merging(["item_id": string, "destination_id": string, "destination_revision": integer]) { $1 }, boardRequired + ["item_id", "destination_id", "destination_revision"]),
             spec("queue_create", "Atomically create a paused FIFO queue of text and captured images. Array order is paste order. Does not type into an application.", ["title": string, "items": items, "idempotency_key": string], ["items", "idempotency_key"]),
             spec("queue_append", "Atomically append items. A retry with the same key and arguments returns the original result.", write.merging(["items": items]) { $1 }, ["queue_id", "items", "idempotency_key"]),
             spec("queue_list", "List saved queue metadata and the active queue ID without clipboard text. Works while the panel is closed.", [:], [], true),
@@ -58,7 +74,7 @@ enum CliprillMCP {
                 let result = try await dispatch(name: CommandLine.arguments[2], arguments: args)
                 print(String(decoding: try result.encoded(), as: UTF8.self)); return
             }
-            let server = Server(name: "Cliprill", version: "0.3.0", capabilities: .init(tools: .init(listChanged: false)))
+            let server = Server(name: "Cliprill", version: "0.5.0", capabilities: .init(tools: .init(listChanged: false)))
             await server.withMethodHandler(ListTools.self) { _ in .init(tools: specs.map(\.tool)) }
             await server.withMethodHandler(CallTool.self) { params in
                 do {

@@ -20,6 +20,34 @@ final class ImageQueueTests: XCTestCase {
         let state = await core.snapshot()
         return .object(["history_id": .string(try XCTUnwrap(state.history.first?.id))])
     }
+    func testUnretainedCapturesDoNotAccumulateWhenReferenceSetIsUnchanged() async throws {
+        let core = try QueueCore(directory: directory)
+        for red: CGFloat in [0.2, 0.8] {
+            let image = try fixture(red: red)
+            try await core.capture(image: image, source: "Fixture", capacity: 0)
+            do { _ = try await core.imageData(image.image); XCTFail("Unretained blob must be collected") }
+            catch { XCTAssertEqual((error as? CoreError)?.code, "image_missing") }
+        }
+    }
+    func testPinnedImageSurvivesHistoryClearAndLastReferenceDeletionCollectsIt() async throws {
+        let image = try fixture(), core = try QueueCore(directory: directory)
+        try await core.capture(image: image, source: "Fixture")
+        let reference = try await historyReference(core)
+        var ids: [String] = []
+        for title in ["Personal", "Work"] {
+            let board = try await core.handle(IPCRequest(method: "board_create", arguments: ["title": .string(title)]))
+            let id = try XCTUnwrap(board["board_id"].string); ids.append(id)
+            _ = try await core.handle(IPCRequest(method: "board_add", arguments: ["board_id": .string(id), "expected_revision": .integer(1), "history_id": reference["history_id"]]))
+        }
+        _ = try await core.handle(IPCRequest(method: "history_clear"))
+        let restarted = try QueueCore(directory: directory)
+        let saved = try await restarted.imageData(image.image); XCTAssertEqual(saved, image.png)
+        _ = try await restarted.handle(IPCRequest(method: "board_delete", arguments: ["board_id": .string(ids[0]), "expected_revision": .integer(2)]))
+        let stillSaved = try await restarted.imageData(image.image); XCTAssertEqual(stillSaved, image.png)
+        _ = try await restarted.handle(IPCRequest(method: "board_delete", arguments: ["board_id": .string(ids[1]), "expected_revision": .integer(2)]))
+        do { _ = try await restarted.imageData(image.image); XCTFail("Last reference must release image") }
+        catch { XCTAssertEqual((error as? CoreError)?.code, "image_missing") }
+    }
     func testMixedQueueRetainsImageAfterHistoryClearRestartAndUndo() async throws {
         let image = try fixture(), core = try QueueCore(directory: directory)
         try await core.capture(image: image, source: "Screenshot")
@@ -80,7 +108,7 @@ final class ImageQueueTests: XCTestCase {
         state.queues = [ClipQueue(title: "Legacy", items: [QueueItem(text: "A"), QueueItem(text: "B")])]
         try SQLiteStore(directory: directory).save(state)
         let core = try QueueCore(directory: directory), loaded = await core.snapshot()
-        XCTAssertEqual(loaded.schema, 2); XCTAssertEqual(loaded.history[0].text, "saved history")
+        XCTAssertEqual(loaded.schema, 3); XCTAssertEqual(loaded.history[0].text, "saved history")
         XCTAssertEqual(loaded.queues[0].items.map(\.text), ["A", "B"])
         XCTAssertNil(loaded.history[0].image); XCTAssertNil(loaded.queues[0].items[0].image)
     }

@@ -1,7 +1,7 @@
 # Image clipboard support
 
 Copy an image or a screenshot to the clipboard, then open Cliprill with
-Shift–Command–V. History shows a thumbnail, dimensions and size. Enter pastes it
+Shift–Command–C. History shows a thumbnail, dimensions and size. Enter pastes it
 to the destination app; Command–Y or the context menu previews it. The row's plus
 button adds the complete image to a queue. Text and images retain their order,
 including duplicate images, and each Command–V consumes one item.

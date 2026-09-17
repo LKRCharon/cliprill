@@ -4,12 +4,12 @@
 [![Release](https://img.shields.io/github/v/release/LKRCharon/cliprill)](https://github.com/LKRCharon/cliprill/releases/latest)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
-A small native macOS clipboard manager with a FIFO paste queue and an MCP interface.
+A small native macOS clipboard manager with reusable pinboards, a FIFO paste queue and an MCP interface.
 
 Copy or import `A, A, B`, then press Command–V three times to paste `A`, `A`, `B`.
 The panel opens near your pointer. Queues also work through an embedded MCP helper.
 
-Cliprill 0.3.0 supports plain text and images, including mixed paste queues. Requires macOS 14+.
+Cliprill 0.5.0 supports named, colored pinboards and plain text/image paste queues. Requires macOS 14+.
 The interface is available in English and Simplified Chinese.
 
 ## Install
@@ -32,11 +32,11 @@ releases retain the certificate and bundle ID. See [signing and upgrades](docs/S
 ## Start using it
 
 1. Open `Cliprill.app`. It lives in the menu bar.
-2. Press **Shift–Command–V** to open the panel near the pointer. Change this shortcut in Settings.
+2. Press **Shift–Command–C** for clipboard history and one-off pasting, or **Shift–Command–V** for the persistent paste queue. These shortcuts can be changed in Settings.
 3. Copy text or an image normally to build history. Images show thumbnails and dimensions. Click a row's **+** to append it to the selected queue; text and images can be mixed.
 4. Choose **New Queue** from the top **⋯** menu to create a queue from text. Choose **Whole text** or explicitly split by lines.
 5. Switch to **Queue** to automatically start the selected queue. The panel stays visible; drag the blank header area to reposition it. The permission guide opens **System Settings → Privacy & Security → Accessibility**, offers **Show Cliprill in Finder** if it is missing from the list, and detects when access is enabled. Click **Continue** to return to your queue.
-6. Focus your destination app. Each ordinary **Command–V** dispatches one item in FIFO order while the queue stays visible. Switching back to **History** pauses sequential paste.
+6. Focus your destination app. Each ordinary **Command–V** dispatches one item in FIFO order while the queue stays visible. Switching to **History** or **Pinboards** pauses sequential paste.
 
 Use the **⋯** or row context menu to reorder or remove remaining items and restore
 the last dispatched item. Restoring an item pauses
@@ -53,6 +53,28 @@ Copying something else pauses an active queue. Closing the panel keeps the servi
 running. Restarting the app restores unfinished queues in a paused state. A queue
 owns independent text and image snapshots, so clearing history does not empty it. Duplicate
 entries are preserved; `A, A, B` takes three paste requests. No reverse insertion is needed.
+
+## Pinboards: keep frequently used content
+
+Press **Shift–Command–B** for **Pinboards / 常用**. Create named, colored boards for
+personal details, work snippets or projects. Save text directly or use History's
+**Pin to board** context menu, including for images. Add short labels, edit long
+snippets, reorder them or move them between boards. Return/double-click pastes
+once; the saved item stays. Clearing history does not delete pinned items.
+
+Individual items can hide their body preview; Settings can hide all board previews.
+This is display masking, not encryption. Full preview/edit and explicit MCP
+content requests can still read the original. See [Pinboards](docs/PINBOARDS.md).
+
+Settings also includes login startup, image capture, capture speed (0.2 / 0.5 /
+1 second), retention and exclusions. Balanced 0.5-second capture is the default.
+An active queue checks every 0.2 seconds and retains per-paste safety checks.
+Disabling capture with no active queue stops clipboard polling. The filled menu-bar
+mark has a fixed 34 pt click target; hidden lists are not rebuilt on background updates.
+
+The 0.5 upgrade migrates storage to schema 3. For a downgrade path, back up the
+application-support directory with Cliprill stopped; restoring only an older app
+is insufficient. Signing identity and customized History/Queue shortcuts stay unchanged.
 
 ## Paste behavior and limits
 

@@ -120,3 +120,32 @@ receiving application.
   this iteration. Automated checks do not verify the new rendered appearance.
 - Both architectures run the existing protected PR checks and repeat those
   checks on the release tag before publishing their packages.
+
+## 2026-09-17 pinboards and efficiency for 0.5.0
+
+- Local arm64: 35 Swift tests pass. New coverage includes schema 2 migration,
+  independent saved snippets, history cleanup/restart, persisted idempotency,
+  stale revisions and atomic moves, invalid reordering/inputs, bounded content
+  paging, and image retention until the last board reference is removed.
+  An unchanged-reference-set regression test checks immediate image disposal.
+  Image-capture preferences skip image payload loading while preserving plain text.
+- Release packaging and four fixed-signature upgrade/tamper checks pass.
+  Packaged MCP integration initializes and lists 21 tools, creates/reads/edits
+  boards, verifies metadata-only reads and retry safety, and verifies saved
+  snippets after an app restart. Existing queue integration checks still pass.
+- The isolated `--no-capture` smoke run asserts `poll_interval_ms == 0` and
+  `poll_ticks == 0`. Throughout hidden queue/board reads and writes, the list
+  rebuild counter stays at its initial value. These are direct work-elimination
+  checks, not claims of a measured percentage CPU or battery improvement.
+- Default capture interval is now 500 ms (previously 250 ms); Fast is 200 ms and
+  Low power is 1,000 ms. Active queues use 200 ms plus the unchanged per-dispatch
+  clipboard/focus checks. Slower capture can miss rapidly replaced clipboard
+  contents; users can choose Fast.
+- English and Simplified Chinese catalogs have 137 matching keys, pass plutil,
+  and resolve all literal UI localization references. Python syntax and diff
+  whitespace checks pass. Tests use synthetic contents and no physical paste.
+- No repeated screenshot tuning was performed. New pinboard rendering, physical
+  keyboard delivery, login-item approval and real destination-app behavior await
+  user feedback; build/core/MCP results do not establish those manual outcomes.
+- Protected PR and tag workflows run native arm64 and Intel checks independently;
+  see the actual GitHub runs for their completion status.

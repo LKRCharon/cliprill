@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import AppKit
+import ServiceManagement
 import ApplicationServices
 import KeyboardShortcuts
 import CliprillCore
@@ -63,10 +64,14 @@ final class ImportController: NSWindowController {
 }
 
 @MainActor
-final class SettingsController: NSWindowController {
+final class SettingsController: NSWindowController, NSWindowDelegate {
     unowned let appDelegate: AppDelegate
     private let permission = NSTextField(labelWithString: "")
     private let capture = NSButton(checkboxWithTitle: L("capture.history"), target: nil, action: nil)
+    private let images = NSButton(checkboxWithTitle: L("settings.images"), target: nil, action: nil)
+    private let previews = NSButton(checkboxWithTitle: L("settings.previews"), target: nil, action: nil)
+    private let login = NSButton(checkboxWithTitle: L("settings.login"), target: nil, action: nil)
+    private let speed = NSPopUpButton()
     private let capacity = NSPopUpButton()
     private let retention = NSPopUpButton()
     private let excluded = NSTextView()
@@ -87,8 +92,21 @@ final class SettingsController: NSWindowController {
         stack.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 20)])
 
+        window.delegate = self
         let recorder = KeyboardShortcuts.RecorderCocoa(for: .toggleCliprill)
-        stack.addArrangedSubview(section(L("settings.general"), icon: .keyboard, views: [row(L("open.shortcut"), recorder)]))
+        let historyRecorder = KeyboardShortcuts.RecorderCocoa(for: .openHistory)
+        stack.addArrangedSubview(section(L("settings.general"), icon: .keyboard, views: [row(L("history.shortcut"), historyRecorder), row(L("queue.shortcut"), recorder), row(L("board.shortcut"), KeyboardShortcuts.RecorderCocoa(for: .openBoards))]))
+        images.state = UserDefaults.standard.bool(forKey: "captureImages") ? .on : .off
+        previews.state = UserDefaults.standard.bool(forKey: "boardPreviews") ? .on : .off
+        for button in [images, previews] { button.target = self; button.action = #selector(savePreferences) }
+        for value in ["fast", "balanced", "low"] {
+            speed.addItem(withTitle: L("speed." + value)); speed.lastItem?.representedObject = value
+            if UserDefaults.standard.string(forKey: "captureSpeed") == value { speed.selectItem(at: speed.numberOfItems - 1) }
+        }
+        speed.target = self; speed.action = #selector(savePreferences)
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        login.target = self; login.action = #selector(changeLogin)
+        stack.addArrangedSubview(section(L("settings.behavior"), icon: .settings, views: [login, previews, row(L("settings.speed"), speed)]))
         capture.state = UserDefaults.standard.bool(forKey: "captureEnabled") ? .on : .off; capture.target = self; capture.action = #selector(savePreferences)
         capture.font = CliprillAppearance.font(13)
         for n in [100, 500, 1000, 2000] { capacity.addItem(withTitle: String(n)); capacity.lastItem?.tag = n }
@@ -108,7 +126,7 @@ final class SettingsController: NSWindowController {
         let save = ActionButton(title: L("save.exclusions")) { [weak self] in self?.savePreferences() }
         let clear = ActionButton(title: L("clear.history"), icon: .trash) { [weak self] in self?.clearHistory() }
         stack.addArrangedSubview(section(L("history"), icon: .clipboard, views: [
-            capture, row(L("history.limit"), capacity), row(L("history.retention"), retention),
+            capture, images, row(L("history.limit"), capacity), row(L("history.retention"), retention),
             HairlineView(), excludedLabel, excludedScroll, horizontalRow([clear, NSView(), save])
         ]))
         permission.font = CliprillAppearance.font(13); permission.lineBreakMode = .byTruncatingTail
@@ -116,16 +134,36 @@ final class SettingsController: NSWindowController {
         stack.addArrangedSubview(section(L("permission.title"), icon: .permission, views: [horizontalRow([permission, NSView(), grant])]))
         let mcp = ActionButton(title: L("copy.mcp.config"), icon: .clipboard) { [weak self] in self?.copyMCP() }
         stack.addArrangedSubview(section(L("settings.integration"), icon: .settings, views: [row(L("settings.mcp"), mcp)]))
-        let version = bodyLabel("Cliprill 0.3.0 · AGPL-3.0-only", size: 12, secondary: true)
+        let version = bodyLabel("Cliprill 0.5.0 · AGPL-3.0-only", size: 12, secondary: true)
         stack.addArrangedSubview(version)
         feedback.font = CliprillAppearance.font(12); feedback.textColor = CliprillAppearance.secondary; stack.addArrangedSubview(feedback)
         for view in stack.arrangedSubviews { view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         root.layoutSubtreeIfNeeded()
         root.setFrameSize(NSSize(width: root.frame.width, height: max(740, stack.fittingSize.height + 44)))
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in Task { @MainActor in if self?.window?.isVisible == true { self?.refreshPermission() } } }
         refreshPermission()
     }
     required init?(coder: NSCoder) { fatalError() }
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshPermission() }
+        }
+        timer?.tolerance = 0.4
+    }
+    func windowWillClose(_ notification: Notification) { timer?.invalidate(); timer = nil }
+    @objc private func changeLogin() {
+        do {
+            if login.state == .on { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+            if SMAppService.mainApp.status == .requiresApproval {
+                feedback.stringValue = L("settings.login.approval")
+                SMAppService.openSystemSettingsLoginItems()
+            } else { feedback.stringValue = L("saved") }
+        } catch { feedback.stringValue = error.localizedDescription }
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    }
     private func section(_ title: String, icon: ClipIcon, views: [NSView]) -> NSView {
         let group = NSStackView(); group.orientation = .vertical; group.alignment = .leading; group.spacing = 8
         let image = NSImageView(image: icon.image()); image.contentTintColor = CliprillAppearance.secondary
@@ -142,13 +180,20 @@ final class SettingsController: NSWindowController {
     private func row(_ title: String, _ control: NSView) -> NSStackView {
         horizontalRow([bodyLabel(title), NSView(), control])
     }
+    func windowDidBecomeKey(_ notification: Notification) { refreshPermission() }
     func refreshPermission() {
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        if login.state == .on && feedback.stringValue == L("settings.login.approval") { feedback.stringValue = L("saved") }
         permission.stringValue = appDelegate.coordinator.hasPermission ? L("permission.ready") : L("permission.missing")
         permission.textColor = CliprillAppearance.secondary
     }
     @objc private func savePreferences() {
         let defaults = UserDefaults.standard
         defaults.set(capture.state == .on, forKey: "captureEnabled"); defaults.set(capacity.selectedTag(), forKey: "historyCapacity"); defaults.set(retention.selectedTag(), forKey: "retentionDays"); defaults.set(excluded.string, forKey: "excludedApps")
+        defaults.set(images.state == .on, forKey: "captureImages")
+        defaults.set(previews.state == .on, forKey: "boardPreviews")
+        defaults.set(speed.selectedItem?.representedObject as? String ?? "balanced", forKey: "captureSpeed")
+        appDelegate.coordinator.configurePolling()
         Task {
             do { try await appDelegate.core.pruneHistory(capacity: capacity.selectedTag(), retentionDays: retention.selectedTag()); await appDelegate.refresh(); feedback.stringValue = L("saved") }
             catch { feedback.stringValue = error.localizedDescription }

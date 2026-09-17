@@ -75,12 +75,22 @@ public struct HistoryItem: Codable, Sendable, Identifiable, Equatable {
     public var image: ClipboardImage?
 }
 public struct CoreState: Codable, Sendable {
-    public var schema: Int = 2
+    public var schema: Int = 3
     public var queues: [ClipQueue] = []
     public var history: [HistoryItem] = []
+    public var boards: [Pinboard] = []
     public var activeID: String? = nil
     public var activeQueue: ClipQueue? { queues.first { $0.id == activeID && $0.status == .active } }
     public init() {}
+    private enum CodingKeys: String, CodingKey { case schema, queues, history, boards, activeID }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try c.decode(Int.self, forKey: .schema)
+        queues = try c.decode([ClipQueue].self, forKey: .queues)
+        history = try c.decode([HistoryItem].self, forKey: .history)
+        boards = try c.decodeIfPresent([Pinboard].self, forKey: .boards) ?? []
+        activeID = try c.decodeIfPresent(String.self, forKey: .activeID)
+    }
 }
 public struct PasteReservation: Sendable, Equatable {
     public let token: UUID
