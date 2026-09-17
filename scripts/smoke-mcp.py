@@ -87,7 +87,7 @@ def main():
     directory.mkdir(parents=True, exist_ok=True)
     logfile = directory / "app.log"
     log = logfile.open("wb")
-    process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)"], stdout=log, stderr=log)
+    process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)", "-autoDeleteEmptyQueues", "YES"], stdout=log, stderr=log)
     client = None
     try:
         for _ in range(80):
@@ -151,7 +151,7 @@ def main():
         assert diagnostics["list_rebuilds"] == status["list_rebuilds"], diagnostics
         client.close(); client = None
         process.terminate(); process.wait(timeout=10)
-        process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)"], stdout=log, stderr=log)
+        process = subprocess.Popen([str(app / "Contents/MacOS/Cliprill"), "--background", "--no-capture", "--data-dir", str(directory), "-AppleLanguages", "(zh-Hans)", "-autoDeleteEmptyQueues", "YES"], stdout=log, stderr=log)
         for _ in range(80):
             try:
                 queues = ipc(directory, "queue_list")["queues"]
