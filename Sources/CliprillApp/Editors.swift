@@ -73,6 +73,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
     private let previews = NSButton(checkboxWithTitle: L("settings.previews"), target: nil, action: nil)
     private let login = NSButton(checkboxWithTitle: L("settings.login"), target: nil, action: nil)
     private let automaticPreview = NSButton(checkboxWithTitle: L("settings.preview.automatic"), target: nil, action: nil)
+    private let showSourceApps = NSButton(checkboxWithTitle: L("settings.source.apps"), target: nil, action: nil)
     private let pasteMovesToTop = NSButton(checkboxWithTitle: L("settings.paste.top"), target: nil, action: nil)
     private let previewDelay = NSPopUpButton()
     private let speed = NSPopUpButton()
@@ -103,6 +104,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         images.state = UserDefaults.standard.bool(forKey: "captureImages") ? .on : .off
         previews.state = UserDefaults.standard.bool(forKey: "boardPreviews") ? .on : .off
         automaticPreview.state = UserDefaults.standard.bool(forKey: "automaticPreview") ? .on : .off
+        showSourceApps.state = UserDefaults.standard.bool(forKey: "showSourceApps") ? .on : .off
         pasteMovesToTop.state = UserDefaults.standard.bool(forKey: "pasteMovesToTop") ? .on : .off
         for delay in [0.2, 0.3, 0.5, 0.8, 1.0, 2.0] {
             previewDelay.addItem(withTitle: String(format: "%.1f s", delay))
@@ -113,7 +115,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         }
         previewDelay.isEnabled = automaticPreview.state == .on
         previewDelay.target = self; previewDelay.action = #selector(savePreferences)
-        for button in [images, previews, automaticPreview, pasteMovesToTop] { button.target = self; button.action = #selector(savePreferences) }
+        for button in [images, previews, automaticPreview, pasteMovesToTop, showSourceApps] { button.target = self; button.action = #selector(savePreferences) }
         for value in ["fast", "balanced", "low"] {
             speed.addItem(withTitle: L("speed." + value)); speed.lastItem?.representedObject = value
             if UserDefaults.standard.string(forKey: "captureSpeed") == value { speed.selectItem(at: speed.numberOfItems - 1) }
@@ -155,7 +157,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
             root.setFrameSize(NSSize(width: root.frame.width, height: max(640, stack.fittingSize.height + 44)))
         }
         stack.addArrangedSubview(section(L("history"), views: [
-            capture, images, pasteMovesToTop, row(L("history.limit"), capacity), row(L("history.retention"), retention),
+            capture, images, pasteMovesToTop, showSourceApps, row(L("history.limit"), capacity), row(L("history.retention"), retention),
             horizontalRow([disclose, NSView(), clear]), exclusions
         ]))
         permission.font = CliprillAppearance.font(13); permission.lineBreakMode = .byTruncatingTail
@@ -250,6 +252,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         let defaults = UserDefaults.standard
         defaults.set(capture.state == .on, forKey: "captureEnabled"); defaults.set(capacity.selectedTag(), forKey: "historyCapacity"); defaults.set(retention.selectedTag(), forKey: "retentionDays"); defaults.set(excluded.string, forKey: "excludedApps")
         defaults.set(images.state == .on, forKey: "captureImages")
+        defaults.set(showSourceApps.state == .on, forKey: "showSourceApps")
         defaults.set(pasteMovesToTop.state == .on, forKey: "pasteMovesToTop")
         defaults.set(previewDelay.selectedItem?.representedObject as? Double ?? 0.5, forKey: "previewDelay")
         previewDelay.isEnabled = automaticPreview.state == .on
