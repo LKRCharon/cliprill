@@ -225,6 +225,11 @@ final class PasteCoordinator {
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier else { throw CoreError("target_changed", L("target.changed")) }
         guard NSPasteboard.general.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
         try write(content); try sendPaste(to: target.processIdentifier)
+        if UserDefaults.standard.bool(forKey: "pasteMovesToTop") {
+            do { try await core.promoteHistory(id: item.id) }
+            catch { onMessage?(error.localizedDescription) }
+            await onChange?()
+        }
     }
     func pause(reason: String, waitForPump: Bool = true) async {
         pauseDepth += 1; pasteEpoch += 1

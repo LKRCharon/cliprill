@@ -676,7 +676,8 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         if inBoards, let item = boardRows[safe: table.selectedRow],
            item.sensitive || !UserDefaults.standard.bool(forKey: "boardPreviews") { return }
         let row = table.selectedRow
-        let delay = max(0.65, NSEvent.doubleClickInterval + 0.1)
+        let configuredDelay = UserDefaults.standard.double(forKey: "previewDelay")
+        let delay = configuredDelay.isFinite ? min(2, max(0.2, configuredDelay)) : 0.5
         delayedPreview = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(delay)) } catch { return }
             guard let self, !Task.isCancelled, self.window?.isVisible == true,

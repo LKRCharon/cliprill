@@ -80,10 +80,11 @@ queue item, even when that completed queue has just been deleted.
 
 ### Click preview
 
-A deliberate single click opens the full preview after 650 ms, or 100 ms beyond
-the system double-click interval when that is longer. Settings can disable it.
+A deliberate single click opens the full preview after 500 ms by default, adjustable from 200 ms to 2 seconds in Settings. Settings can disable it.
 Programmatic selection and keyboard navigation do not schedule previews.
 Selection changes, list rebuilds, Escape, loss of panel focus and double-click
 actions cancel the pending preview. Before presentation the panel must still be
 visible and key, without an editor or sheet. Sensitive or globally hidden board
 items require explicit preview. Content tooltips are removed; Command-Y remains.
+
+Successful history paste dispatch refreshes the existing item to the top by default. Settings can disable this. Identity, source and image references are preserved; its recency date is refreshed. Failed dispatches and missing IDs do not promote or recreate entries.
