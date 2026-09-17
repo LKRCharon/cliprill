@@ -149,3 +149,13 @@ receiving application.
   user feedback; build/core/MCP results do not establish those manual outcomes.
 - Protected PR and tag workflows run native arm64 and Intel checks independently;
   see the actual GitHub runs for their completion status.
+
+## Empty queue cleanup setting (after 0.5.0)
+
+- 40 local Swift tests pass. Added coverage checks default final-dispatch deletion,
+  last-item removal with persisted retry receipts, restart policy, opt-out and Undo,
+  enabling cleanup during a paste reservation, cancelled dispatch and image cleanup.
+  Existing retained-completion tests explicitly opt out of automatic deletion.
+- Packaged integration additionally checks the default preference, automatic
+  deletion via `queue_remove`, `not_found` on subsequent reads, and idempotent retry.
+- No additional screenshot tuning or physical keyboard tests are part of this change.

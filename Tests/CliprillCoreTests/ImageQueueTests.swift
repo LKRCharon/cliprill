@@ -29,6 +29,17 @@ final class ImageQueueTests: XCTestCase {
             catch { XCTAssertEqual((error as? CoreError)?.code, "image_missing") }
         }
     }
+    func testAutomaticQueueDeletionReleasesConsumedImageAfterLastReference() async throws {
+        let image = try fixture(), core = try QueueCore(directory: directory)
+        try await core.capture(image: image, source: "Fixture")
+        let reference = try await historyReference(core)
+        let created = try await core.handle(IPCRequest(method: "queue_create", arguments: ["items": .array([reference])]))
+        _ = try await core.handle(IPCRequest(method: "history_clear"))
+        _ = try await core.handle(IPCRequest(method: "queue_activate", arguments: ["queue_id": created["queue_id"]]))
+        let reservation = try await core.reserveNext(); try await core.commit(reservation.token)
+        do { _ = try await core.imageData(image.image); XCTFail("Auto-deleted queue must release its image") }
+        catch { XCTAssertEqual((error as? CoreError)?.code, "image_missing") }
+    }
     func testPinnedImageSurvivesHistoryClearAndLastReferenceDeletionCollectsIt() async throws {
         let image = try fixture(), core = try QueueCore(directory: directory)
         try await core.capture(image: image, source: "Fixture")

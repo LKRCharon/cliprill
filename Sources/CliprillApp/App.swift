@@ -51,10 +51,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSource: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        UserDefaults.standard.register(defaults: ["captureEnabled": true, "historyCapacity": 500, "retentionDays": 30, "captureImages": true, "captureSpeed": "balanced", "boardPreviews": true])
+        UserDefaults.standard.register(defaults: ["captureEnabled": true, "historyCapacity": 500, "retentionDays": 30, "captureImages": true, "captureSpeed": "balanced", "boardPreviews": true, "autoDeleteEmptyQueues": true])
         do {
             instance = try InstanceLock(directory: CliprillPaths.dataDirectory)
-            core = try QueueCore(directory: CliprillPaths.dataDirectory)
+            core = try QueueCore(directory: CliprillPaths.dataDirectory, autoDeleteEmptyQueues: UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues"))
             coordinator = PasteCoordinator(core: core, noCapture: CommandLine.arguments.contains("--no-capture") || ProcessInfo.processInfo.environment["CLIPRILL_NO_CAPTURE"] == "1")
             panel = PanelController(appDelegate: self)
             coordinator.isPanelKey = { NSApp.keyWindow != nil }
@@ -132,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch request.method {
             case "app_show": if panel.window?.isVisible != true { togglePanel() }; return IPCResponse(result: .object(["visible": .bool(true)]))
             case "app_hide": panel.window?.orderOut(nil); return IPCResponse(result: .object(["visible": .bool(false)]))
-            case "app_status": return IPCResponse(result: .object(["version": .string("0.5.0"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "list_rebuilds": .integer(panel.rebuildCount), "events": coordinator.diagnostics]))
+            case "app_status": return IPCResponse(result: .object(["version": .string("0.5.0"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "auto_delete_empty_queues": .bool(UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues")), "list_rebuilds": .integer(panel.rebuildCount), "events": coordinator.diagnostics]))
             default: return IPCResponse(result: try await perform(request.method, request.arguments))
             }
         } catch { return IPCResponse(error: error) }

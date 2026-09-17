@@ -66,3 +66,14 @@ bounded to 12 MiB; the prepared full-size image is released after one-off pastin
 or queue deactivation. SQLite updates board payloads only when they change and
 skips image reference garbage collection when the retained set is unchanged,
 except when a newly captured image is immediately discarded.
+
+## Empty queue cleanup
+
+Settings → Queue adds “Delete queues when empty”, enabled by default. Finishing
+or removing the last pending item deletes the queue in the same storage transaction
+as the cursor/removal change. Startup and enabling the option also clean existing
+empty queues. Nonempty queues, history and pinboards remain; clearing the active ID
+never starts another queue. Opting out keeps completed queues and their Undo behavior.
+The last pasted item remains on the system clipboard after deletion. A rapid burst
+already accepted by the event tap keeps ordinary paste behavior after its final
+queue item, even when that completed queue has just been deleted.

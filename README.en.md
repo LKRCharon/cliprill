@@ -48,6 +48,8 @@ When filling a form, prepare the values in a queue and paste them one at a time.
 
 For example, a queue containing `A, A, B` pastes `A`, `A`, then `B` on three presses. Duplicates are kept, and text and images can share a queue.
 
+Empty queues are automatically deleted after pasting or removing the last item by default. Turn this off in Settings → Queue to keep completed queues and restore the last dispatched item. Enabling the setting also removes existing empty queues.
+
 Switching to History or Pinboards, or copying something else, pauses the queue. Closing the panel alone does not pause it. Use the menu to reorder or remove items, or restore the last dispatched item. Restoring an item does not undo text already pasted into another app.
 
 ## Keep frequently used information
@@ -68,6 +70,7 @@ Open Settings from **⋯** or by right-clicking the menu-bar icon. You can adjus
 - All three global shortcuts and startup at login.
 - Whether to record the clipboard and save images.
 - History capacity, retention and excluded apps.
+- Automatic deletion of empty queues (on by default).
 - Fast / Balanced / Low power capture speed and saved-item previews.
 
 ## Privacy and common questions
@@ -76,7 +79,7 @@ Open Settings from **⋯** or by right-clicking the menu-bar icon. You can adjus
 
 **Can an AI tool help prepare a queue?** Yes. Copy the MCP configuration from Settings into a compatible client to manage queues and pinboards. Connected clients can read clipboard history and request saved content, so connect only clients you trust. See the [MCP guide](docs/MCP.md) for setup.
 
-**Why didn't a paste work?** Check Accessibility permission and make sure the destination input has focus. Sequential paste uses ordinary **⌘V**; choosing Paste from a context menu does not advance the queue. If the destination misses a paste, restore the last item and retry.
+**Why didn't a paste work?** Check Accessibility permission and make sure the destination input has focus. Sequential paste uses ordinary **⌘V**; choosing Paste from a context menu does not advance the queue. If the destination misses a paste and the queue still exists, restore the last item and retry. When a queue is deleted after its final paste, that pasted content remains on the system clipboard, so you can press ⌘V again.
 
 **What content is supported?** Plain text and images. Rich-text formatting, Finder file transfers and full animated-image playback are not currently supported.
 

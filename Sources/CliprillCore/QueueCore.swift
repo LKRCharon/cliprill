@@ -6,11 +6,13 @@ public actor QueueCore {
     private let store: SQLiteStore
     private var state: CoreState
     private var reservation: PasteReservation?
+    private var autoDeleteEmptyQueues: Bool
     public static let maxTextBytes = 262_144
     public static let maxBatchBytes = 2_000_000
     public static let maxImageStorageBytes = 256 * 1024 * 1024
 
-    public init(directory: URL) throws {
+    public init(directory: URL, autoDeleteEmptyQueues: Bool = true) throws {
+        self.autoDeleteEmptyQueues = autoDeleteEmptyQueues
         store = try SQLiteStore(directory: directory)
         state = try store.load()
         state.schema = 3
@@ -20,7 +22,18 @@ public actor QueueCore {
             state.queues[index].pauseReason = "app_restarted"
             state.queues[index].revision += 1
         }
+        if autoDeleteEmptyQueues { state.queues.removeAll { $0.remaining == 0 } }
         try store.save(state)
+    }
+    /// Enabling also cleans existing empty queues; a reserved item is still remaining.
+    public func setAutoDeleteEmptyQueues(_ enabled: Bool) throws {
+        var next = state
+        if enabled {
+            next.queues.removeAll { $0.remaining == 0 }
+            if let id = next.activeID, !next.queues.contains(where: { $0.id == id }) { next.activeID = nil }
+        }
+        if next.queues != state.queues { try store.save(next); state = next }
+        autoDeleteEmptyQueues = enabled
     }
     public func snapshot() -> CoreState { state }
     private func fingerprint(_ request: IPCRequest) throws -> String {
@@ -146,8 +159,16 @@ public actor QueueCore {
             default: throw CoreError("unknown_method", "Unknown write operation.")
             }
             q.revision += 1
-            next.queues[i] = q
-            response = describe(q, content: false)
+            if autoDeleteEmptyQueues && q.remaining == 0 {
+                next.queues.remove(at: i)
+                if next.activeID == q.id { next.activeID = nil }
+                var value = describe(q, content: false).object!
+                value["deleted"] = .bool(true)
+                response = .object(value)
+            } else {
+                next.queues[i] = q
+                response = describe(q, content: false)
+            }
         }
         guard next.queues.reduce(0, { $0 + $1.items.reduce(0) { $0 + $1.text.utf8.count } }) <= 8_000_000 else {
             throw CoreError("capacity", "Saved queues exceed 8 MB. Delete an old queue first.")
@@ -267,7 +288,11 @@ public actor QueueCore {
         guard let r = reservation, r.token == token, let i = state.queues.firstIndex(where: { $0.id == r.queueID }), state.queues[i].revision == r.revision else { throw CoreError("invalid_reservation", "Paste reservation expired.") }
         var next = state
         next.queues[i].cursor += 1; next.queues[i].revision += 1
-        if next.queues[i].remaining == 0 { next.queues[i].status = .completed; next.activeID = nil }
+        if next.queues[i].remaining == 0 {
+            next.activeID = nil
+            if autoDeleteEmptyQueues { next.queues.remove(at: i) }
+            else { next.queues[i].status = .completed }
+        }
         do { try store.save(next); state = next; reservation = nil }
         catch { reservation = nil; throw error }
     }

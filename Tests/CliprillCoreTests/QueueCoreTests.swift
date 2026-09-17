@@ -23,7 +23,7 @@ final class QueueCoreTests: XCTestCase {
         catch { XCTAssertEqual((error as? CoreError)?.code, code) }
     }
     func testFIFOAndCompletedQueue() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let id = try await create(core, ["A", "B", "C"])
         _ = try await call(core, "queue_activate", id)
         for text in ["A", "B", "C"] {
@@ -36,7 +36,7 @@ final class QueueCoreTests: XCTestCase {
         await expectCode("inactive") { _ = try await core.reserveNext() }
     }
     func testDuplicatesAndMultilineAreIndependentItems() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let texts = ["A", "A", "B\nC", ""]
         let id = try await create(core, texts)
         let snapshot = await core.snapshot()
@@ -45,10 +45,10 @@ final class QueueCoreTests: XCTestCase {
         for text in texts { let item = try await core.reserveNext(); XCTAssertEqual(item.item.text, text); try await core.commit(item.token) }
     }
     func testIdempotencySurvivesRestartAndConflicts() async throws {
-        let first = try QueueCore(directory: directory)
+        let first = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let id = try await create(first, ["A", "A", "B"], key: "create-1")
         _ = try await call(first, "queue_activate", id)
-        let second = try QueueCore(directory: directory)
+        let second = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let sameID = try await create(second, ["A", "A", "B"], key: "create-1")
         XCTAssertEqual(id, sameID)
         let snapshot = await second.snapshot()
@@ -57,7 +57,7 @@ final class QueueCoreTests: XCTestCase {
         let state = await second.snapshot(); XCTAssertEqual(state.queues[0].items.count, 3)
     }
     func testAppendAtomicAndRetryDoesNotDuplicate() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let id = try await create(core, ["first"])
         let args: [String: JSONValue] = ["items": .array([.object(["text": .string("A")]), .object(["text": .string("A")])]), "idempotency_key": .string("append-1")]
         async let one = call(core, "queue_append", id, args)
@@ -69,7 +69,7 @@ final class QueueCoreTests: XCTestCase {
         let state = await core.snapshot(); XCTAssertEqual(state.queues[0].items.map(\.text), ["first", "A", "A"])
     }
     func testReorderRequiresCompleteRemainingPermutationAndRevision() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let id = try await create(core, ["A", "B", "C"])
         _ = try await call(core, "queue_activate", id)
         let reservation = try await core.reserveNext(); try await core.commit(reservation.token)
@@ -81,7 +81,7 @@ final class QueueCoreTests: XCTestCase {
         let changed = await core.snapshot(); XCTAssertEqual(changed.queues[0].items.map(\.text), ["A", "C", "B"]); XCTAssertEqual(changed.queues[0].cursor, 1)
     }
     func testReservationBlocksMutationAndCancelDoesNotConsume() async throws {
-        let core = try QueueCore(directory: directory); let id = try await create(core, ["A", "B"])
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false); let id = try await create(core, ["A", "B"])
         _ = try await call(core, "queue_activate", id)
         let first = try await core.reserveNext()
         await expectCode("busy") { _ = try await core.reserveNext() }
@@ -95,7 +95,7 @@ final class QueueCoreTests: XCTestCase {
         let state = await core.snapshot(); XCTAssertEqual(state.queues[0].cursor, 1)
     }
     func testPauseUndoAndRestartRecovery() async throws {
-        let core = try QueueCore(directory: directory); let id = try await create(core, ["A", "B"])
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false); let id = try await create(core, ["A", "B"])
         _ = try await call(core, "queue_activate", id)
         let first = try await core.reserveNext(); try await core.commit(first.token)
         _ = try await call(core, "queue_pause", id, ["reason": .string("external_copy")])
@@ -103,12 +103,12 @@ final class QueueCoreTests: XCTestCase {
         _ = try await call(core, "queue_undo_last", id)
         let undo = await core.snapshot(); XCTAssertEqual(undo.queues[0].next?.text, "A"); XCTAssertEqual(undo.queues[0].status, .paused)
         _ = try await call(core, "queue_activate", id)
-        let recovered = try QueueCore(directory: directory); let state = await recovered.snapshot()
+        let recovered = try QueueCore(directory: directory, autoDeleteEmptyQueues: false); let state = await recovered.snapshot()
         XCTAssertNil(state.activeID); XCTAssertEqual(state.queues[0].status, .paused); XCTAssertEqual(state.queues[0].pauseReason, "app_restarted")
         XCTAssertEqual(state.queues[0].next?.text, "A")
     }
     func testHistoryCleanupDoesNotChangeQueueSnapshots() async throws {
-        let core = try QueueCore(directory: directory); let id = try await create(core, ["A", "A", "B"])
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false); let id = try await create(core, ["A", "A", "B"])
         try await core.capture(text: "A", source: "Test"); try await core.capture(text: "A", source: "Other")
         let captured = await core.snapshot(); XCTAssertEqual(captured.history.count, 1); XCTAssertEqual(captured.history[0].source, "Other")
         _ = try await core.handle(IPCRequest(method: "history_clear"))
@@ -119,7 +119,7 @@ final class QueueCoreTests: XCTestCase {
         XCTAssertEqual(full["items"].array?.first?["text"].string, "A")
     }
     func testSwitchingQueuesPausesPreviousAndCompletedCanAppend() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let a = try await create(core, ["A"]); let b = try await create(core, ["B"])
         _ = try await call(core, "queue_activate", a); _ = try await call(core, "queue_activate", b)
         let state = await core.snapshot(); XCTAssertEqual(state.activeID, b); XCTAssertEqual(state.queues.first { $0.id == a }?.status, .paused)
@@ -128,7 +128,7 @@ final class QueueCoreTests: XCTestCase {
         let updated = await core.snapshot(); XCTAssertEqual(updated.queues[0].next?.text, "C"); XCTAssertEqual(updated.queues[0].status, .paused)
     }
     func testHistoryPagingAndCapacity() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         for text in ["alpha", "beta", "gamma"] { try await core.capture(text: text, source: "Test", capacity: 2) }
         let search = try await core.handle(IPCRequest(method: "history_search", arguments: ["query": .string("a"), "limit": .integer(1)]))
         XCTAssertEqual(search["total"].int, 2); XCTAssertEqual(search["next_offset"].int, 1)
@@ -140,7 +140,7 @@ final class QueueCoreTests: XCTestCase {
         withExtendedLifetime(first) {}
     }
     func testContentPagingBoundsEscapedJSONAndPreservesFullOrder() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let text = String(repeating: "\u{01}", count: 200_000)
         let id = try await create(core, [text, text, text])
         let first = try await call(core, "queue_get", id, ["include_content": .bool(true)])
@@ -153,11 +153,11 @@ final class QueueCoreTests: XCTestCase {
         XCTAssertEqual(last["next_offset"], .null)
     }
     func testCachedActivationDoesNotResumeRecoveredQueue() async throws {
-        let first = try QueueCore(directory: directory)
+        let first = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let id = try await create(first, ["A"])
         let request = IPCRequest(method: "queue_activate", arguments: ["queue_id": .string(id), "idempotency_key": .string("activation")])
         let original = try await first.handle(request)
-        let restarted = try QueueCore(directory: directory)
+        let restarted = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let cached = try await restarted.cachedResponse(request)
         XCTAssertEqual(original, cached)
         let state = await restarted.snapshot()
@@ -165,7 +165,7 @@ final class QueueCoreTests: XCTestCase {
         XCTAssertNil(state.activeID)
     }
     func testRemoveCannotDeleteConsumedItemsAndDeletePreservesHistory() async throws {
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let id = try await create(core, ["A", "B"])
         try await core.capture(text: "A", source: "Test")
         _ = try await call(core, "queue_activate", id)
@@ -178,7 +178,7 @@ final class QueueCoreTests: XCTestCase {
     }
     func testSocketRoundTripWithoutUI() async throws {
         let lock = try InstanceLock(directory: directory)
-        let core = try QueueCore(directory: directory)
+        let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let server = try IPCServer(directory: directory)
         server.start { request in do { return IPCResponse(result: try await core.handle(request)) } catch { return IPCResponse(error: error) } }
         defer { server.stop(); withExtendedLifetime(lock) {} }

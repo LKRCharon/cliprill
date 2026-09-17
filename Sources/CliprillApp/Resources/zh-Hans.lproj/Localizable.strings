@@ -137,3 +137,6 @@
 "speed.fast" = "灵敏 · 0.2 秒";
 "speed.balanced" = "均衡 · 0.5 秒";
 "speed.low" = "省电 · 1 秒";
+
+"settings.queue.cleanup" = "队列为空时自动删除";
+"settings.queue.cleanup.hint" = "默认开启。粘贴完或移除最后一项后删除队列；开启时也会清理已有空队列。关闭后可保留已完成队列，恢复上一次出队。";
