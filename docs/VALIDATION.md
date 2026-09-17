@@ -159,3 +159,10 @@ receiving application.
 - Packaged integration additionally checks the default preference, automatic
   deletion via `queue_remove`, `not_found` on subsequent reads, and idempotent retry.
 - No additional screenshot tuning or physical keyboard tests are part of this change.
+
+## 0.6.0 release
+
+- 41 Swift tests pass locally, including persisted history promotion.
+- Release package builds and passes fixed-identity/tamper checks and the 21-tool MCP smoke test.
+- Selected rows explicitly report a normal interior background style, matching their custom neutral selection surface. An isolated AppKit check covered light/dark and selected/unselected style propagation to image and button cells.
+- This is a style-state check, not a rendered screenshot or physical interaction claim. Broad visual automation was omitted per user preference.

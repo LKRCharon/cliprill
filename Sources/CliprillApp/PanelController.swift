@@ -18,6 +18,9 @@ private final class ClipTable: NSTableView {
     }
 }
 private final class ClipRowView: NSTableRowView {
+    // Our selection is a neutral surface, not AppKit's emphasized selection.
+    // Prevent template images and button cells from being automatically inverted.
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
     var sectionHeight: CGFloat = 0
     private var itemBounds: NSRect {
         var rect = bounds
