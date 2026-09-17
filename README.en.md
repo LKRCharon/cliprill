@@ -36,7 +36,7 @@ Current releases use a fixed self-signed certificate and are not Apple-notarized
 
 Copy text or an image normally, then press **⇧⌘C** to open History. Search for a keyword, select an item, and press Return or double-click to paste it into the app you were using.
 
-Press **⌘Y** or use the context menu to preview full text or an image. Images retain their original pixel dimensions and transparency; the receiving app needs to support image pasting.
+Click an item and pause briefly to preview it automatically (disable this in Settings). Hidden saved items never open automatically. Press **⌘Y** or use the context menu to preview full text or an image. Images retain their original pixel dimensions and transparency; the receiving app needs to support image pasting.
 
 ## Paste in order
 

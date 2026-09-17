@@ -130,7 +130,7 @@ private final class ClipCell: NSTableCellView {
             addSubview(button); trailing = button
             NSLayoutConstraint.activate([button.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5), button.centerYAnchor.constraint(equalTo: content.centerYAnchor)])
         }
-        toolTip = [title, detail].joined(separator: "\n")
+        toolTip = nil
         setAccessibilityLabel([position, title, next ? L("next") : "", detail].filter { !$0.isEmpty }.joined(separator: ", "))
     }
     private static func isWebLink(_ text: String) -> Bool {
@@ -162,6 +162,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     private var emptyAction: ActionButton!
     private var preview: NSPopover?
     private var previewTask: Task<Void, Never>?
+    private var delayedPreview: Task<Void, Never>?
     private let thumbnails = NSCache<NSString, NSImage>()
     private var editor: NSWindowController?
     private var monitor: Any?
@@ -201,6 +202,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             if (self.window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
             if event.keyCode == 53 {
+                self.delayedPreview?.cancel()
                 if self.preview?.isShown == true { self.preview?.close() }
                 else if !self.search.stringValue.isEmpty { self.clearSearch() }
                 else { self.window?.orderOut(nil) }
@@ -282,7 +284,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("clip")); column.resizingMask = .autoresizingMask
         table.addTableColumn(column); table.headerView = nil; table.rowHeight = CliprillAppearance.rowHeight; table.intercellSpacing = .zero
         table.backgroundColor = .clear; table.style = .plain; table.selectionHighlightStyle = .regular
-        table.dataSource = self; table.delegate = self; table.target = self; table.doubleAction = #selector(openSelected)
+        table.dataSource = self; table.delegate = self; table.target = self; table.doubleAction = #selector(openSelected); table.action = #selector(schedulePreview)
         table.allowsEmptySelection = true; table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         table.setAccessibilityLabel(L("clipboard.items"))
         table.contextMenu = { [weak self] in self?.makeActionsMenu() ?? NSMenu() }
@@ -366,6 +368,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         selector.setAccessibilityLabel(L(inBoards ? "board.choose" : "choose.queue"))
     }
     private func reloadRows() {
+        cancelPreview()
         rebuildCount += 1
         reloadSelector()
         searchSurface.refresh()
@@ -439,7 +442,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
     func controlTextDidBeginEditing(_ obj: Notification) { searchSurface.needsDisplay = true }
     func controlTextDidEndEditing(_ obj: Notification) { searchSurface.needsDisplay = true }
     func windowDidBecomeKey(_ notification: Notification) { searchSurface.needsDisplay = true }
-    func windowDidResignKey(_ notification: Notification) { searchSurface.needsDisplay = true }
+    func windowDidResignKey(_ notification: Notification) { delayedPreview?.cancel(); searchSurface.needsDisplay = true }
     private func clearSearch() { search.stringValue = ""; reloadRows(); resizeForContents(); window?.makeFirstResponder(search) }
     private func selectMode(queue: Bool) {
         guard mode != (queue ? .queue : .history) else { return }
@@ -562,6 +565,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         } }
     }
     @objc private func openSelected() {
+        cancelPreview()
         if inQueue { showPreview(); return }
         guard let item = inBoards ? boardRows[safe: table.selectedRow]?.pasteItem : historyRows[safe: table.selectedRow] else { return }
         run {
@@ -660,7 +664,31 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             run { _ = try await self.appDelegate.perform("history_delete", ["item_id": .string(item.id)]) }
         }
     }
-    private func showPreview() {
+    private func cancelPreview() {
+        delayedPreview?.cancel(); delayedPreview = nil
+        previewTask?.cancel(); preview?.close()
+    }
+    func tableViewSelectionDidChange(_ notification: Notification) { cancelPreview() }
+    @objc private func schedulePreview() {
+        cancelPreview()
+        guard UserDefaults.standard.bool(forKey: "automaticPreview"),
+              table.clickedRow >= 0, NSApp.currentEvent?.clickCount == 1 else { return }
+        if inBoards, let item = boardRows[safe: table.selectedRow],
+           item.sensitive || !UserDefaults.standard.bool(forKey: "boardPreviews") { return }
+        let row = table.selectedRow
+        let delay = max(0.65, NSEvent.doubleClickInterval + 0.1)
+        delayedPreview = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            guard let self, !Task.isCancelled, self.window?.isVisible == true,
+                  self.window?.isKeyWindow == true, self.editor == nil,
+                  self.window?.attachedSheet == nil, self.table.selectedRow == row,
+                  UserDefaults.standard.bool(forKey: "automaticPreview") else { return }
+            self.showPreview(automatic: true)
+        }
+    }
+    private func showPreview(automatic: Bool = false) {
+        delayedPreview?.cancel()
+
         let row = table.selectedRow
         let text = inBoards ? boardRows[safe: row]?.text : inQueue ? queueRows[safe: row]?.text : historyRows[safe: row]?.text
         let image = inBoards ? boardRows[safe: row]?.image : inQueue ? queueRows[safe: row]?.image : historyRows[safe: row]?.image
@@ -691,8 +719,10 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             view.autoresizingMask = [.width]; view.textContainer?.widthTracksTextView = true; view.isVerticallyResizable = true
             scroll.documentView = view; vc.view = scroll
         }
-        let popover = NSPopover(); popover.contentViewController = vc; popover.behavior = .semitransient; popover.contentSize = size
+        let popover = NSPopover(); popover.contentViewController = vc; popover.behavior = .semitransient; popover.animates = !automatic; popover.contentSize = size
+        let responder = window?.firstResponder
         preview = popover; popover.show(relativeTo: table.rect(ofRow: row), of: table, preferredEdge: .maxX)
+        if automatic { window?.makeFirstResponder(responder) }
     }
     private func showImport(append: Bool) {
         guard let window, editor == nil else { return }

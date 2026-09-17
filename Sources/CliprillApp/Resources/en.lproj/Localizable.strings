@@ -140,3 +140,5 @@
 
 "settings.queue.cleanup" = "Delete queues when empty";
 "settings.queue.cleanup.hint" = "On by default. Finishing or removing the last item deletes the queue. Enabling also removes existing empty queues. Turn off to keep completed queues and restore the last item.";
+
+"settings.preview.automatic" = "Preview after clicking an item";

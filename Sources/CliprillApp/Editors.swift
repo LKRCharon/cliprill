@@ -72,6 +72,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
     private let autoDeleteQueues = NSButton(checkboxWithTitle: L("settings.queue.cleanup"), target: nil, action: nil)
     private let previews = NSButton(checkboxWithTitle: L("settings.previews"), target: nil, action: nil)
     private let login = NSButton(checkboxWithTitle: L("settings.login"), target: nil, action: nil)
+    private let automaticPreview = NSButton(checkboxWithTitle: L("settings.preview.automatic"), target: nil, action: nil)
     private let speed = NSPopUpButton()
     private let capacity = NSPopUpButton()
     private let retention = NSPopUpButton()
@@ -99,7 +100,8 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         stack.addArrangedSubview(section(L("settings.general"), icon: .keyboard, views: [row(L("history.shortcut"), historyRecorder), row(L("queue.shortcut"), recorder), row(L("board.shortcut"), KeyboardShortcuts.RecorderCocoa(for: .openBoards))]))
         images.state = UserDefaults.standard.bool(forKey: "captureImages") ? .on : .off
         previews.state = UserDefaults.standard.bool(forKey: "boardPreviews") ? .on : .off
-        for button in [images, previews] { button.target = self; button.action = #selector(savePreferences) }
+        automaticPreview.state = UserDefaults.standard.bool(forKey: "automaticPreview") ? .on : .off
+        for button in [images, previews, automaticPreview] { button.target = self; button.action = #selector(savePreferences) }
         for value in ["fast", "balanced", "low"] {
             speed.addItem(withTitle: L("speed." + value)); speed.lastItem?.representedObject = value
             if UserDefaults.standard.string(forKey: "captureSpeed") == value { speed.selectItem(at: speed.numberOfItems - 1) }
@@ -107,19 +109,18 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         speed.target = self; speed.action = #selector(savePreferences)
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         login.target = self; login.action = #selector(changeLogin)
-        stack.addArrangedSubview(section(L("settings.behavior"), icon: .settings, views: [login, previews, row(L("settings.speed"), speed)]))
+        stack.addArrangedSubview(section(L("settings.behavior"), icon: .settings, views: [login, automaticPreview, previews, row(L("settings.speed"), speed)]))
         autoDeleteQueues.state = UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues") ? .on : .off
         autoDeleteQueues.target = self; autoDeleteQueues.action = #selector(changeQueueCleanup)
-        let queueHint = NSTextField(wrappingLabelWithString: L("settings.queue.cleanup.hint"))
-        queueHint.font = CliprillAppearance.font(12); queueHint.textColor = CliprillAppearance.secondary
-        stack.addArrangedSubview(section(L("queue"), icon: .clipboard, views: [autoDeleteQueues, queueHint]))
+        autoDeleteQueues.toolTip = L("settings.queue.cleanup.hint")
+        stack.addArrangedSubview(section(L("queue"), icon: .clipboard, views: [autoDeleteQueues]))
         capture.state = UserDefaults.standard.bool(forKey: "captureEnabled") ? .on : .off; capture.target = self; capture.action = #selector(savePreferences)
         capture.font = CliprillAppearance.font(13)
         for n in [100, 500, 1000, 2000] { capacity.addItem(withTitle: String(n)); capacity.lastItem?.tag = n }
         capacity.selectItem(withTag: UserDefaults.standard.integer(forKey: "historyCapacity")); capacity.target = self; capacity.action = #selector(savePreferences)
         for n in [1, 7, 30, 90] { retention.addItem(withTitle: "\(n) " + L("days")); retention.lastItem?.tag = n }
         retention.selectItem(withTag: UserDefaults.standard.integer(forKey: "retentionDays")); retention.target = self; retention.action = #selector(savePreferences)
-        let excludedLabel = bodyLabel(L("excluded.apps"), size: 12, secondary: true)
+
         let excludedScroll = NSScrollView(); excludedScroll.hasVerticalScroller = true; excludedScroll.borderType = .noBorder
         excludedScroll.wantsLayer = true; excludedScroll.layer?.cornerRadius = 8; excludedScroll.layer?.cornerCurve = .continuous
         excluded.isRichText = false; excluded.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
@@ -131,9 +132,19 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         excludedScroll.documentView = excluded; excludedScroll.heightAnchor.constraint(equalToConstant: 78).isActive = true
         let save = ActionButton(title: L("save.exclusions")) { [weak self] in self?.savePreferences() }
         let clear = ActionButton(title: L("clear.history"), icon: .trash) { [weak self] in self?.clearHistory() }
+        let exclusions = NSStackView(views: [excludedScroll, save])
+        exclusions.orientation = .vertical; exclusions.alignment = .leading; exclusions.spacing = 8
+        excludedScroll.widthAnchor.constraint(equalTo: exclusions.widthAnchor).isActive = true
+        exclusions.isHidden = true
+        let disclose = ActionButton(title: L("excluded.apps")) { [weak exclusions, weak root, weak stack] in
+            guard let exclusions, let root, let stack else { return }
+            exclusions.isHidden.toggle()
+            root.layoutSubtreeIfNeeded()
+            root.setFrameSize(NSSize(width: root.frame.width, height: max(640, stack.fittingSize.height + 44)))
+        }
         stack.addArrangedSubview(section(L("history"), icon: .clipboard, views: [
             capture, images, row(L("history.limit"), capacity), row(L("history.retention"), retention),
-            HairlineView(), excludedLabel, excludedScroll, horizontalRow([clear, NSView(), save])
+            horizontalRow([disclose, NSView(), clear]), exclusions
         ]))
         permission.font = CliprillAppearance.font(13); permission.lineBreakMode = .byTruncatingTail
         let grant = ActionButton(title: L("permission.manage")) { [weak self] in self?.openPermission() }
@@ -145,7 +156,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         feedback.font = CliprillAppearance.font(12); feedback.textColor = CliprillAppearance.secondary; stack.addArrangedSubview(feedback)
         for view in stack.arrangedSubviews { view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         root.layoutSubtreeIfNeeded()
-        root.setFrameSize(NSSize(width: root.frame.width, height: max(740, stack.fittingSize.height + 44)))
+        root.setFrameSize(NSSize(width: root.frame.width, height: max(640, stack.fittingSize.height + 44)))
         refreshPermission()
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -172,15 +183,14 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
     }
     private func section(_ title: String, icon: ClipIcon, views: [NSView]) -> NSView {
         let group = NSStackView(); group.orientation = .vertical; group.alignment = .leading; group.spacing = 8
-        let image = NSImageView(image: icon.image()); image.contentTintColor = CliprillAppearance.secondary
-        let heading = bodyLabel(title, size: 12, secondary: true); heading.font = CliprillAppearance.font(12, weight: .medium)
-        group.addArrangedSubview(horizontalRow([image, heading]))
-        let card = SurfaceView(radius: 10); card.showsBorder = true
-        let content = NSStackView(views: views); content.orientation = .vertical; content.alignment = .leading; content.spacing = 12
-        content.translatesAutoresizingMaskIntoConstraints = false; card.addSubview(content)
-        NSLayoutConstraint.activate([content.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14), content.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14), content.topAnchor.constraint(equalTo: card.topAnchor, constant: 14), content.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)])
+        let heading = bodyLabel(title, size: 12, secondary: true)
+        heading.font = CliprillAppearance.font(12, weight: .medium)
+        group.addArrangedSubview(heading)
+        let content = NSStackView(views: views)
+        content.orientation = .vertical; content.alignment = .leading; content.spacing = 9
         for view in views { view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
-        group.addArrangedSubview(card); card.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true
+        group.addArrangedSubview(content)
+        content.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true
         return group
     }
     private func row(_ title: String, _ control: NSView) -> NSStackView {
@@ -212,6 +222,7 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         let defaults = UserDefaults.standard
         defaults.set(capture.state == .on, forKey: "captureEnabled"); defaults.set(capacity.selectedTag(), forKey: "historyCapacity"); defaults.set(retention.selectedTag(), forKey: "retentionDays"); defaults.set(excluded.string, forKey: "excludedApps")
         defaults.set(images.state == .on, forKey: "captureImages")
+        defaults.set(automaticPreview.state == .on, forKey: "automaticPreview")
         defaults.set(previews.state == .on, forKey: "boardPreviews")
         defaults.set(speed.selectedItem?.representedObject as? String ?? "balanced", forKey: "captureSpeed")
         appDelegate.coordinator.configurePolling()

@@ -140,3 +140,5 @@
 
 "settings.queue.cleanup" = "队列为空时自动删除";
 "settings.queue.cleanup.hint" = "默认开启。粘贴完或移除最后一项后删除队列；开启时也会清理已有空队列。关闭后可保留已完成队列，恢复上一次出队。";
+
+"settings.preview.automatic" = "单击条目后自动预览";

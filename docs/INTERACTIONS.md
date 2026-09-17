@@ -77,3 +77,13 @@ never starts another queue. Opting out keeps completed queues and their Undo beh
 The last pasted item remains on the system clipboard after deletion. A rapid burst
 already accepted by the event tap keeps ordinary paste behavior after its final
 queue item, even when that completed queue has just been deleted.
+
+### Click preview
+
+A deliberate single click opens the full preview after 650 ms, or 100 ms beyond
+the system double-click interval when that is longer. Settings can disable it.
+Programmatic selection and keyboard navigation do not schedule previews.
+Selection changes, list rebuilds, Escape, loss of panel focus and double-click
+actions cancel the pending preview. Before presentation the panel must still be
+visible and key, without an editor or sheet. Sensitive or globally hidden board
+items require explicit preview. Content tooltips are removed; Command-Y remains.
