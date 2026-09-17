@@ -22,6 +22,22 @@ final class QueueCoreTests: XCTestCase {
         do { try await action(); XCTFail("Expected \(code)") }
         catch { XCTAssertEqual((error as? CoreError)?.code, code) }
     }
+    func testPromoteHistoryPreservesIdentityAndPersists() async throws {
+        let core = try QueueCore(directory: directory)
+        try await core.capture(text: "first", source: "original")
+        let original = await core.snapshot().history[0]
+        try await core.capture(text: "second", source: "other")
+        try await core.promoteHistory(id: original.id)
+        let reopened = try QueueCore(directory: directory)
+        let history = await reopened.snapshot().history
+        XCTAssertEqual(history.map(\.text), ["first", "second"])
+        XCTAssertEqual(history[0].id, original.id)
+        XCTAssertEqual(history[0].source, original.source)
+        XCTAssertGreaterThanOrEqual(history[0].copiedAt, original.copiedAt)
+        try await core.promoteHistory(id: "missing")
+        let unchanged = await core.snapshot().history
+        XCTAssertEqual(unchanged, history)
+    }
     func testFIFOAndCompletedQueue() async throws {
         let core = try QueueCore(directory: directory, autoDeleteEmptyQueues: false)
         let id = try await create(core, ["A", "B", "C"])

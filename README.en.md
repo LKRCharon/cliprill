@@ -71,6 +71,7 @@ Open Settings from **⋯** or by right-clicking the menu-bar icon. You can adjus
 - Whether to record the clipboard and save images.
 - History capacity, retention and excluded apps.
 - Automatic deletion of empty queues (on by default).
+- Pasted history items move to the top by default (optional). Automatic preview defaults to 0.5 seconds, adjustable in Settings.
 - Fast / Balanced / Low power capture speed and saved-item previews.
 
 ## Privacy and common questions

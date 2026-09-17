@@ -255,6 +255,15 @@ public actor QueueCore {
         trimHistory(&next, capacity: capacity, retentionDays: retentionDays)
         try store.save(next, image: image); state = next
     }
+    /// Refresh recency only for a history item that still exists; never recreate deleted content.
+    public func promoteHistory(id: String) throws {
+        guard let index = state.history.firstIndex(where: { $0.id == id }) else { return }
+        var next = state
+        var item = next.history.remove(at: index)
+        item.copiedAt = Date()
+        next.history.insert(item, at: 0)
+        try store.save(next); state = next
+    }
     public func imageData(_ image: ClipboardImage, thumbnail: Bool = false) throws -> Data {
         try store.imageData(id: image.id, thumbnail: thumbnail)
     }
