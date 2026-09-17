@@ -83,23 +83,23 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
     private var timer: Timer?
     init(appDelegate: AppDelegate) {
         self.appDelegate = appDelegate
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 536, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Cliprill · " + L("settings"); window.isReleasedWhenClosed = false
         window.backgroundColor = CliprillAppearance.windowBackground
         window.titlebarAppearsTransparent = true
         super.init(window: window)
         let scroll = NSScrollView(); scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
         window.contentView = scroll
-        let root = FlippedView(frame: NSRect(x: 0, y: 0, width: 536, height: 740))
+        let root = FlippedView(frame: NSRect(x: 0, y: 0, width: 460, height: 740))
         root.autoresizingMask = [.width]; scroll.documentView = root
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 18
+        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 24
         stack.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 20)])
 
         window.delegate = self
         let recorder = KeyboardShortcuts.RecorderCocoa(for: .toggleCliprill)
         let historyRecorder = KeyboardShortcuts.RecorderCocoa(for: .openHistory)
-        stack.addArrangedSubview(section(L("settings.general"), icon: .keyboard, views: [row(L("history.shortcut"), historyRecorder), row(L("queue.shortcut"), recorder), row(L("board.shortcut"), KeyboardShortcuts.RecorderCocoa(for: .openBoards))]))
+        stack.addArrangedSubview(section(L("settings.general"), views: [row(L("history.shortcut"), historyRecorder), row(L("queue.shortcut"), recorder), row(L("board.shortcut"), KeyboardShortcuts.RecorderCocoa(for: .openBoards))]))
         images.state = UserDefaults.standard.bool(forKey: "captureImages") ? .on : .off
         previews.state = UserDefaults.standard.bool(forKey: "boardPreviews") ? .on : .off
         automaticPreview.state = UserDefaults.standard.bool(forKey: "automaticPreview") ? .on : .off
@@ -121,11 +121,11 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         speed.target = self; speed.action = #selector(savePreferences)
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         login.target = self; login.action = #selector(changeLogin)
-        stack.addArrangedSubview(section(L("settings.behavior"), icon: .settings, views: [login, row(L("settings.preview.delay"), previewDelay), automaticPreview, previews, row(L("settings.speed"), speed)]))
+        stack.addArrangedSubview(section(L("settings.behavior"), views: [login, automaticPreview, row(L("settings.preview.delay"), previewDelay), previews, row(L("settings.speed"), speed)]))
         autoDeleteQueues.state = UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues") ? .on : .off
         autoDeleteQueues.target = self; autoDeleteQueues.action = #selector(changeQueueCleanup)
         autoDeleteQueues.toolTip = L("settings.queue.cleanup.hint")
-        stack.addArrangedSubview(section(L("queue"), icon: .clipboard, views: [autoDeleteQueues]))
+        stack.addArrangedSubview(section(L("queue"), views: [autoDeleteQueues]))
         capture.state = UserDefaults.standard.bool(forKey: "captureEnabled") ? .on : .off; capture.target = self; capture.action = #selector(savePreferences)
         capture.font = CliprillAppearance.font(13)
         for n in [100, 500, 1000, 2000] { capacity.addItem(withTitle: String(n)); capacity.lastItem?.tag = n }
@@ -154,15 +154,15 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
             root.layoutSubtreeIfNeeded()
             root.setFrameSize(NSSize(width: root.frame.width, height: max(640, stack.fittingSize.height + 44)))
         }
-        stack.addArrangedSubview(section(L("history"), icon: .clipboard, views: [
+        stack.addArrangedSubview(section(L("history"), views: [
             capture, images, pasteMovesToTop, row(L("history.limit"), capacity), row(L("history.retention"), retention),
             horizontalRow([disclose, NSView(), clear]), exclusions
         ]))
         permission.font = CliprillAppearance.font(13); permission.lineBreakMode = .byTruncatingTail
         let grant = ActionButton(title: L("permission.manage")) { [weak self] in self?.openPermission() }
-        stack.addArrangedSubview(section(L("permission.title"), icon: .permission, views: [horizontalRow([permission, NSView(), grant])]))
+        stack.addArrangedSubview(section(L("permission.title"), views: [horizontalRow([permission, NSView(), grant])]))
         let mcp = ActionButton(title: L("copy.mcp.config"), icon: .clipboard) { [weak self] in self?.copyMCP() }
-        stack.addArrangedSubview(section(L("settings.integration"), icon: .settings, views: [row(L("settings.mcp"), mcp)]))
+        stack.addArrangedSubview(section(L("settings.integration"), views: [row(L("settings.mcp"), mcp)]))
         let version = bodyLabel("Cliprill 0.5.0 · AGPL-3.0-only", size: 12, secondary: true)
         stack.addArrangedSubview(version)
         feedback.font = CliprillAppearance.font(12); feedback.textColor = CliprillAppearance.secondary; stack.addArrangedSubview(feedback)
@@ -193,16 +193,32 @@ final class SettingsController: NSWindowController, NSWindowDelegate {
         } catch { feedback.stringValue = error.localizedDescription }
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
-    private func section(_ title: String, icon: ClipIcon, views: [NSView]) -> NSView {
-        let group = NSStackView(); group.orientation = .vertical; group.alignment = .leading; group.spacing = 8
-        let heading = bodyLabel(title, size: 12, secondary: true)
-        heading.font = CliprillAppearance.font(12, weight: .medium)
-        group.addArrangedSubview(heading)
+    private func section(_ title: String, views: [NSView]) -> NSView {
+        let group = NSStackView()
+        group.orientation = .vertical; group.alignment = .leading; group.spacing = 10
+        let heading = bodyLabel(title, size: 13)
+        heading.font = CliprillAppearance.font(13, weight: .semibold)
+        heading.setContentHuggingPriority(.required, for: .horizontal)
+        let rule = HairlineView()
+        rule.widthAnchor.constraint(greaterThanOrEqualToConstant: 24).isActive = true
+        let header = horizontalRow([heading, rule], spacing: 12)
+        group.addArrangedSubview(header)
+        header.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true
+
         let content = NSStackView(views: views)
-        content.orientation = .vertical; content.alignment = .leading; content.spacing = 9
+        content.orientation = .vertical; content.alignment = .leading; content.spacing = 8
         for view in views { view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
-        group.addArrangedSubview(content)
-        content.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true
+        let inset = NSView()
+        content.translatesAutoresizingMaskIntoConstraints = false
+        inset.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: inset.leadingAnchor, constant: 10),
+            content.trailingAnchor.constraint(equalTo: inset.trailingAnchor),
+            content.topAnchor.constraint(equalTo: inset.topAnchor),
+            content.bottomAnchor.constraint(equalTo: inset.bottomAnchor)
+        ])
+        group.addArrangedSubview(inset)
+        inset.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true
         return group
     }
     private func row(_ title: String, _ control: NSView) -> NSStackView {
