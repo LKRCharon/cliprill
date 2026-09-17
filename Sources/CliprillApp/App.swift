@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSource: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        UserDefaults.standard.register(defaults: ["captureEnabled": true, "historyCapacity": 500, "retentionDays": 30, "captureImages": true, "captureSpeed": "balanced", "boardPreviews": true, "autoDeleteEmptyQueues": true])
+        UserDefaults.standard.register(defaults: ["captureEnabled": true, "historyCapacity": 500, "retentionDays": 30, "captureImages": true, "captureSpeed": "balanced", "automaticPreview": true, "boardPreviews": true, "autoDeleteEmptyQueues": true])
         do {
             instance = try InstanceLock(directory: CliprillPaths.dataDirectory)
             core = try QueueCore(directory: CliprillPaths.dataDirectory, autoDeleteEmptyQueues: UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues"))
