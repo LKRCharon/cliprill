@@ -37,11 +37,11 @@
 "status.recovered" = "已恢复 · 已暂停";
 "status.complete" = "本轮队列已完成";
 "status.history" = "↵ 粘贴     ⌥↵ 加入队列";
-"permission.required" = "开启辅助功能权限后，可顺序粘贴。";
+"permission.required" = "开启辅助功能权限后，可直接粘贴到其他应用。";
 "permission.reopen" = "请在辅助功能中启用 Cliprill；若仍未生效，请退出并重新打开 Cliprill。";
 "permission.ready" = "辅助功能已开启";
 "permission.missing" = "当前这份 Cliprill 尚未获得权限";
-"secure.input" = "系统正在使用安全输入，请先完成敏感内容输入。";
+"secure.input" = "安全输入使队列无法监听快捷键，仍可从历史粘贴或复制到剪贴板。";
 "clipboard.failed" = "未能写入剪贴板，队列已暂停。";
 "paste.failed" = "未能发送粘贴按键，当前项已保留。";
 "target.changed" = "目标应用已变化，队列已暂停。";
@@ -147,3 +147,6 @@
 "settings.preview.delay" = "预览等待时间";
 
 "settings.source.apps" = "显示来源应用";
+
+"copy.clipboard" = "复制到剪贴板";
+"copied.manual" = "已复制，切到目标应用后按 ⌘V 粘贴。";

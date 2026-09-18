@@ -24,7 +24,7 @@ def main():
     parser.add_argument("--configuration", choices=["debug", "release"], default="release")
     parser.add_argument("--output", type=pathlib.Path, default=ROOT.parent / "Cliprill.app")
     parser.add_argument("--bundle-id", default="org.cliprill.Cliprill")
-    parser.add_argument("--build-number", default="16")
+    parser.add_argument("--build-number", default="17")
     parser.add_argument("--signing-config", type=pathlib.Path)
     opts = parser.parse_args()
     signing = configuration(opts.signing_config)
@@ -44,7 +44,7 @@ def main():
         info = {
             "CFBundleName": "Cliprill", "CFBundleDisplayName": "Cliprill",
             "CFBundleIdentifier": opts.bundle_id, "CFBundleExecutable": "Cliprill",
-            "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "0.6.0",
+            "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "0.7.0",
             "CFBundleVersion": opts.build_number, "LSMinimumSystemVersion": "14.0", "LSUIElement": True,
             "NSHighResolutionCapable": True, "CFBundleIconFile": "Cliprill.icns",
             "CFBundleDevelopmentRegion": "en", "CFBundleLocalizations": ["en", "zh-Hans"],

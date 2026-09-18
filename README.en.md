@@ -12,7 +12,7 @@ Cliprill is a free, open-source clipboard manager for macOS, with support for te
 
 [**Download the latest version →**](https://github.com/LKRCharon/cliprill/releases/latest)
 
-Current release: **0.6.0**. Source labels are hidden by default; click preview and paste recency are configurable.
+Current release: **0.7.0**. Source labels are hidden by default; click preview and paste recency are configurable.
 
 ## Three ways to use it
 
@@ -35,6 +35,8 @@ Requires **macOS 14 or later**. Supports Apple Silicon and Intel Macs.
 Current releases use a fixed self-signed certificate and are not Apple-notarized. If macOS blocks the first launch, confirm you downloaded it from this repository, then use **System Settings → Privacy & Security → Open Anyway**.
 
 ## Find something you copied
+
+Secure Input no longer blocks direct-paste attempts from History or Pinboards. If the target app rejects simulated paste, use Copy to Clipboard from the context menu, then press ⌘V yourself. ⌘C also copies when the list has focus. Automatic queue consumption still requires global keyboard monitoring.
 
 Copy text or an image normally, then press **⇧⌘C** to open History. Search for a keyword, select an item, and press Return or double-click to paste it into the app you were using.
 

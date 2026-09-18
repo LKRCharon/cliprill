@@ -132,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch request.method {
             case "app_show": if panel.window?.isVisible != true { togglePanel() }; return IPCResponse(result: .object(["visible": .bool(true)]))
             case "app_hide": panel.window?.orderOut(nil); return IPCResponse(result: .object(["visible": .bool(false)]))
-            case "app_status": return IPCResponse(result: .object(["version": .string("0.6.0"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "auto_delete_empty_queues": .bool(UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues")), "list_rebuilds": .integer(panel.rebuildCount), "events": coordinator.diagnostics]))
+            case "app_status": return IPCResponse(result: .object(["version": .string("0.7.0"), "accessibility": .bool(coordinator.hasPermission), "panel_visible": .bool(panel.window?.isVisible ?? false), "capture_enabled": .bool(!coordinator.noCapture && UserDefaults.standard.bool(forKey: "captureEnabled")), "auto_delete_empty_queues": .bool(UserDefaults.standard.bool(forKey: "autoDeleteEmptyQueues")), "list_rebuilds": .integer(panel.rebuildCount), "events": coordinator.diagnostics]))
             default: return IPCResponse(result: try await perform(request.method, request.arguments))
             }
         } catch { return IPCResponse(error: error) }

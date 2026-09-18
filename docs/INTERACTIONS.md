@@ -88,3 +88,10 @@ visible and key, without an editor or sheet. Sensitive or globally hidden board
 items require explicit preview. Content tooltips are removed; Command-Y remains.
 
 Successful history paste dispatch refreshes the existing item to the top by default. Settings can disable this. Identity, source and image references are preserved; its recency date is refreshed. Failed dispatches and missing IDs do not promote or recreate entries.
+
+### Secure Input and explicit copy (0.7.0)
+History/Pinboard direct paste checks Accessibility and destination validity but does
+not install an event tap or gate on Secure Input. Queue activation and consumption
+still require reliable key interception. Copy to Clipboard (context menu, or Cmd-C
+with table focus) uses the same text/image writer, pauses queues and does not consume
+items or promote history. Search and preview text selection keep native Cmd-C.

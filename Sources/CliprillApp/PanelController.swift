@@ -215,6 +215,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             if flags == .command {
                 switch event.charactersIgnoringModifiers {
                 case "y": self.showPreview(); return nil
+                case "c" where self.window?.firstResponder === self.table: self.copySelected(); return nil
                 case ",": self.appDelegate.showSettings(); return nil
                 case "1": self.selectMode(queue: false); return nil
                 case "2": self.selectMode(queue: true); return nil
@@ -576,9 +577,20 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         if inQueue { showPreview(); return }
         guard let item = inBoards ? boardRows[safe: table.selectedRow]?.pasteItem : historyRows[safe: table.selectedRow] else { return }
         run {
-            try self.appDelegate.coordinator.ensureTap()
+            try self.appDelegate.coordinator.ensureDirectPastePermission()
             self.window?.orderOut(nil)
             try await self.appDelegate.coordinator.pasteHistory(item, target: self.appDelegate.target)
+        }
+    }
+    private func copySelected() {
+        cancelPreview()
+        let row = table.selectedRow
+        let text = inBoards ? boardRows[safe: row]?.text : inQueue ? queueRows[safe: row]?.text : historyRows[safe: row]?.text
+        let image = inBoards ? boardRows[safe: row]?.image : inQueue ? queueRows[safe: row]?.image : historyRows[safe: row]?.image
+        guard let text else { return }
+        run {
+            try await self.appDelegate.coordinator.copyContent(text: text, image: image)
+            self.showMessage(L("copied.manual"))
         }
     }
     private func enqueueSelected() { if let item = historyRows[safe: table.selectedRow], mode == .history { enqueue(item) } }
@@ -592,6 +604,8 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
             let item = menu.addItem(withTitle: L(key), action: #selector(menuAction(_:)), keyEquivalent: shortcut)
             item.target = self; item.representedObject = command; item.image = icon.image(); item.isEnabled = enabled
         }
+        add("copy.clipboard", "copy", .clipboard, enabled: table.selectedRow >= 0, shortcut: "c")
+        menu.addItem(.separator())
         add("board.new", "board-new", .plus)
         if inBoards {
             add("board.properties", "board-edit", .folder, enabled: currentBoard != nil)
@@ -635,6 +649,7 @@ final class PanelController: NSWindowController, NSTableViewDataSource, NSTableV
         case "board-delete": deleteBoard()
         case "new": showImport(append: false)
         case "append": showImport(append: true)
+        case "copy": copySelected()
         case "preview": showPreview()
         case "enqueue": enqueueSelected()
         case "up": move(-1)

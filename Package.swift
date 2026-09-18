@@ -20,6 +20,7 @@ let package = Package(
         .target(name: "CliprillClipboard", dependencies: ["CliprillCore"]),
         .executableTarget(name: "CliprillApp", dependencies: ["CliprillCore", "CliprillClipboard", "KeyboardShortcuts"], resources: [.process("Resources")]),
         .executableTarget(name: "CliprillMCP", dependencies: ["CliprillCore", .product(name: "MCP", package: "swift-sdk")]),
+        .testTarget(name: "CliprillAppTests", dependencies: ["CliprillApp"]),
         .testTarget(name: "CliprillCoreTests", dependencies: ["CliprillCore"]),
         .testTarget(name: "CliprillClipboardTests", dependencies: ["CliprillClipboard"])
     ],
