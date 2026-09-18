@@ -9,6 +9,9 @@ import CliprillClipboard
 final class PasteCoordinator {
     static let marker: Int64 = 0x434C495052494C4C
     private let core: QueueCore
+    private let pasteboard: NSPasteboard
+    private let accessibilityAvailable: () -> Bool
+    private let secureInputEnabled: () -> Bool
     private var tap: CFMachPort?
     private var tapSource: CFRunLoopSource?
     private var timer: Timer?
@@ -33,11 +36,14 @@ final class PasteCoordinator {
     var onMessage: ((String) -> Void)?
     var isPanelKey: (() -> Bool)?
 
-    init(core: QueueCore, noCapture: Bool) {
-        self.core = core; self.noCapture = noCapture
-        observedChange = NSPasteboard.general.changeCount
+    init(core: QueueCore, noCapture: Bool, pasteboard: NSPasteboard = .general,
+         accessibilityAvailable: @escaping () -> Bool = { AXIsProcessTrusted() },
+         secureInputEnabled: @escaping () -> Bool = { IsSecureEventInputEnabled() }) {
+        self.core = core; self.noCapture = noCapture; self.pasteboard = pasteboard
+        self.accessibilityAvailable = accessibilityAvailable; self.secureInputEnabled = secureInputEnabled
+        observedChange = pasteboard.changeCount
     }
-    var hasPermission: Bool { AXIsProcessTrusted() }
+    var hasPermission: Bool { accessibilityAvailable() }
     var diagnostics: JSONValue {
         .object(["poll_ticks": .integer(pollTicks), "poll_interval_ms": .integer(Int(pollInterval * 1000)), "tap_enabled": .bool(tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false), "key_events": .integer(observedKeyEvents), "paste_events": .integer(observedPasteEvents), "accepting": .bool(accepting), "own_window_key": .bool(isPanelKey?() ?? false), "frontmost_app": .string(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "")])
     }
@@ -55,7 +61,7 @@ final class PasteCoordinator {
         guard interval != pollInterval else { return }
         timer?.invalidate(); timer = nil
         // Re-enabling capture starts from now; do not capture a copy made while disabled.
-        if pollInterval == 0 { observedChange = NSPasteboard.general.changeCount }
+        if pollInterval == 0 { observedChange = pasteboard.changeCount }
         pollInterval = interval
         guard interval > 0 else { return }
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -68,9 +74,13 @@ final class PasteCoordinator {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let tapSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), tapSource, .commonModes) }
     }
-    func ensureTap() throws {
+    /// Direct paste posts an event; it does not require observing global keystrokes.
+    func ensureDirectPastePermission() throws {
         guard hasPermission else { throw CoreError("accessibility_required", L("permission.required")) }
-        guard !IsSecureEventInputEnabled() else { throw CoreError("secure_input", L("secure.input")) }
+    }
+    func ensureTap() throws {
+        try ensureDirectPastePermission()
+        guard !secureInputEnabled() else { throw CoreError("secure_input", L("secure.input")) }
         if let tap, CFMachPortIsValid(tap) { CGEvent.tapEnable(tap: tap, enable: true); return }
         let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue) | (CGEventMask(1) << CGEventType.keyUp.rawValue)
         tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask, callback: { _, type, event, context in
@@ -98,13 +108,13 @@ final class PasteCoordinator {
         guard pauseDepth == 0 else { return }
         headPreparation?.cancel()
         preparingItemID = item.id
-        let change = NSPasteboard.general.changeCount
+        let change = pasteboard.changeCount
         headPreparation = Task {
             do {
                 let content = try await prepared(text: item.text, image: item.image)
                 try Task.checkCancellation()
                 guard queue?.id == q.id, queue?.next?.id == item.id else { return }
-                guard NSPasteboard.general.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
+                guard pasteboard.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
                 try write(content)
                 preparingItemID = nil
             } catch is CancellationError {
@@ -126,8 +136,8 @@ final class PasteCoordinator {
     }
     func write(_ text: String) throws { try write(ClipboardWrite.text(text)) }
     private func write(_ content: ClipboardWrite) throws {
-        try content.write(to: .general)
-        observedChange = NSPasteboard.general.changeCount
+        try content.write(to: pasteboard)
+        observedChange = pasteboard.changeCount
     }
     private func receive(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
@@ -165,8 +175,9 @@ final class PasteCoordinator {
             var token: UUID?
             do {
                 guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw CoreError("target_changed", L("target.changed")) }
-                guard NSPasteboard.general.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
-                guard hasPermission, !IsSecureEventInputEnabled() else { throw CoreError("accessibility_required", L("permission.required")) }
+                guard pasteboard.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
+                try ensureDirectPastePermission()
+                guard !secureInputEnabled() else { throw CoreError("secure_input", L("secure.input")) }
                 let state = await core.snapshot()
                 if state.activeQueue == nil, (completedQueueID == queueID || state.queues.first(where: { $0.id == queueID })?.status == .completed) {
                     // Extra distinct key presses after the final item retain normal paste behavior.
@@ -175,12 +186,13 @@ final class PasteCoordinator {
                     guard accepting, state.activeID == queueID else { pending.removeAll(); return }
                     let r = try await core.reserveNext(); token = r.token
                     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw CoreError("target_changed", L("target.changed")) }
-                    guard NSPasteboard.general.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
+                    guard pasteboard.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
                     let content = try await prepared(text: r.item.text, image: r.item.image)
                     guard accepting, epoch == pasteEpoch else { throw CoreError("queue_paused", L("status.paused")) }
-                    guard hasPermission, !IsSecureEventInputEnabled() else { throw CoreError("input_unavailable", L("permission.required")) }
+                    try ensureDirectPastePermission()
+                    guard !secureInputEnabled() else { throw CoreError("secure_input", L("secure.input")) }
                     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw CoreError("target_changed", L("target.changed")) }
-                    guard NSPasteboard.general.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
+                    guard pasteboard.changeCount == observedChange else { throw CoreError("external_copy", L("copied.paused")) }
                     try write(content)
                     try sendPaste(to: pid)
                     try await core.commit(r.token); token = nil
@@ -208,22 +220,35 @@ final class PasteCoordinator {
             event.postToPid(pid)
         }
     }
+    /// Explicit copy needs neither Accessibility permission nor an event tap.
+    /// It pauses the queue, but never consumes an item or changes history recency.
+    func copyContent(text: String, image: ClipboardImage?) async throws {
+        defer { if queue == nil { cachedImage = nil } }
+        await pause(reason: "manual_copy")
+        let change = pasteboard.changeCount
+        let content = try await prepared(text: text, image: image)
+        guard pasteboard.changeCount == change else {
+            throw CoreError("external_copy", L("copied.paused"))
+        }
+        try write(content)
+    }
     func pasteHistory(_ item: HistoryItem, target: NSRunningApplication?) async throws {
         defer { if queue == nil { cachedImage = nil } }
-        try ensureTap()
+        try ensureDirectPastePermission()
         guard let target, !target.isTerminated, target.processIdentifier != getpid() else { throw CoreError("target_changed", L("target.changed")) }
         await pause(reason: "history_paste")
-        let change = NSPasteboard.general.changeCount
+        let change = pasteboard.changeCount
         let content = try await prepared(text: item.text, image: item.image)
-        guard NSPasteboard.general.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
-        try ensureTap()
+        guard pasteboard.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
+        try ensureDirectPastePermission()
         target.activate(options: [])
         for _ in 0..<20 {
             if NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier { break }
             try await Task.sleep(nanoseconds: 25_000_000)
         }
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier else { throw CoreError("target_changed", L("target.changed")) }
-        guard NSPasteboard.general.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
+        guard pasteboard.changeCount == change else { throw CoreError("external_copy", L("copied.paused")) }
+        try ensureDirectPastePermission()
         try write(content); try sendPaste(to: target.processIdentifier)
         if UserDefaults.standard.bool(forKey: "pasteMovesToTop") {
             do { try await core.promoteHistory(id: item.id) }
@@ -246,8 +271,8 @@ final class PasteCoordinator {
     private func poll() async {
         pollTicks += 1
         guard !polling else { return }; polling = true; defer { polling = false }
-        if accepting, !hasPermission || IsSecureEventInputEnabled() { await pause(reason: "input_unavailable") }
-        let pb = NSPasteboard.general
+        if accepting, !hasPermission || secureInputEnabled() { await pause(reason: "input_unavailable") }
+        let pb = pasteboard
         guard pb.changeCount != observedChange else { return }
         observedChange = pb.changeCount
         let source = NSWorkspace.shared.frontmostApplication

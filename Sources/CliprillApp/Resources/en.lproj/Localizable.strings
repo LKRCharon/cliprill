@@ -37,11 +37,11 @@
 "status.recovered" = "Restored · paused";
 "status.complete" = "All items sent";
 "status.history" = "↵ Paste     ⌥↵ Add to queue";
-"permission.required" = "Allow Accessibility to use sequential paste.";
+"permission.required" = "Allow Accessibility to paste directly into other apps.";
 "permission.reopen" = "Enable Cliprill in Accessibility. If access is still unavailable, quit and reopen Cliprill.";
 "permission.ready" = "Accessibility enabled";
 "permission.missing" = "This copy of Cliprill needs access";
-"secure.input" = "Secure Input is enabled. Finish entering sensitive text first.";
+"secure.input" = "Secure Input prevents queue hotkey monitoring. History paste and Copy to Clipboard remain available.";
 "clipboard.failed" = "Could not write to the clipboard. The queue is paused.";
 "paste.failed" = "Could not send the paste event. The item was kept.";
 "target.changed" = "The target app changed. The queue is paused.";
@@ -147,3 +147,6 @@
 "settings.preview.delay" = "Preview delay";
 
 "settings.source.apps" = "Show source apps";
+
+"copy.clipboard" = "Copy to Clipboard";
+"copied.manual" = "Copied. Switch to the target app and press ⌘V.";

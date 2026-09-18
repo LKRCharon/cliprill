@@ -166,3 +166,11 @@ receiving application.
 - Release package builds and passes fixed-identity/tamper checks and the 21-tool MCP smoke test.
 - Selected rows explicitly report a normal interior background style, matching their custom neutral selection surface. An isolated AppKit check covered light/dark and selected/unselected style propagation to image and button cells.
 - This is a style-state check, not a rendered screenshot or physical interaction claim. Broad visual automation was omitted per user preference.
+
+## 0.7.0
+- Coordinator tests use isolated pasteboards and injected Accessibility/Secure Input
+  state; they never post keyboard events or change system Secure Input.
+- Covers direct-paste permission vs queue gating, missing-target rejection during
+  Secure Input, and manual copy without permission that pauses but preserves queues.
+- Automated checks do not establish delivery into every target application's
+  protected input field. User interaction feedback remains the final compatibility check.
